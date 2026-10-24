@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
+  "name": "gladys-mopidy",
   "version": "1.0.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Gladys Assistant integration for Mopidy: players, playlists, notifications, widget.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,8 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.9",
+    "ws": "^8.22.0"
   },
   "license": "Apache-2.0"
 }

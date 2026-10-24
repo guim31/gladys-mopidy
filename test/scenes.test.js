@@ -1,93 +1,122 @@
+// -----------------------------------------------------------------------------
+// The scene actions (manifest `scene_actions`), as the scene engine of Gladys
+// calls them: resolved fields, a device external id from `source: "devices"`.
+// The address one (play_url) is tested with the notifications.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { DEVICE_BLUEPRINTS } from '../src/devices/index.js';
-import { MOTION_DETECTED_TRIGGER, motionSensor } from '../src/devices/motionSensor.js';
-import { SCENE_ACTIONS } from '../src/scenes.js';
-import { normalizeConfig } from '../src/config.js';
+import { FakeMopidy, createWorld, deviceId } from './helpers/world.js';
 
-const manifest = JSON.parse(
-  await readFile(new URL('../gladys-assistant-integration.json', import.meta.url), 'utf8'),
-);
-const config = normalizeConfig();
+async function world(t, options) {
+  const w = await createWorld(options);
+  t.after(() => w.stop());
+  return w;
+}
 
-const declarationOf = (list, key) => manifest[list].find((entry) => entry.key === key);
-const keysOf = (list) => (list ?? []).map((entry) => entry.key);
-const deviceIdOf = (gladys, key) =>
-  DEVICE_BLUEPRINTS.find((bp) => bp.key === key).deviceExternalId(gladys);
+const names = (w) => w.mopidy.tracklist.map((item) => item.track.name);
 
-// Let the async interval callback run to completion.
-const flush = () => new Promise((resolve) => setImmediate(resolve));
-
-test('the motion sensor fires one motion_detected event per detection, none on the clear', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'one detection, one event');
-    assert.equal(gladys.fake.sceneEvents[0].key, MOTION_DETECTED_TRIGGER);
-    assert.equal(gladys.fake.states.at(-1).state, 1, 'the state is still published');
-
-    t.mock.timers.tick(10_000);
-    await flush();
-    assert.equal(gladys.fake.states.at(-1).state, 0, 'the detection is cleared');
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'the clear fires no event');
-  } finally {
-    stopPush();
-  }
+test('play_playlist: the name is found without case nor accents, the queue is replaced', async (t) => {
+  const w = await world(t);
+  w.mopidy.enqueue('la');
+  const ack = await w.fake.sceneAction('play_playlist', {
+    device: deviceId(w.gladys),
+    playlist: '  APERO ',
+  });
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(ack.data.outputs, { tracks: 2 });
+  assert.equal(w.mopidy.state, 'playing');
+  assert.deepEqual(names(w), ['One More Time', 'Aerodynamic']);
 });
 
-test('motion_detected data only carries keys the trigger declares', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-  } finally {
-    stopPush();
-  }
-  const [{ data }] = gladys.fake.sceneEvents;
-  const trigger = declarationOf('scene_triggers', MOTION_DETECTED_TRIGGER);
-  // The core keeps the `fields` keys (filters) and the `variables` keys
-  // (exposed to the scene): any other key would be silently dropped.
-  const declared = [...keysOf(trigger.fields), ...keysOf(trigger.variables)];
-  for (const [key, value] of Object.entries(data)) {
-    assert.ok(declared.includes(key), `data.${key} is not declared, the core would drop it`);
-    assert.ok(value === null || typeof value !== 'object', `data.${key} must be a primitive`);
-  }
-  // A `"source": "devices"` filter stores a device external_id.
-  assert.equal(data.device, deviceIdOf(gladys, 'motion-sensor'));
-  const targets = trigger.fields.find((field) => field.key === 'target').options;
-  assert.ok(
-    targets.some((option) => option.value === data.target),
-    `data.target "${data.target}" must be one of the filter options`,
+test('play_playlist: the URI works too, an empty playlist is said', async (t) => {
+  const w = await world(t);
+  const ack = await w.fake.sceneAction('play_playlist', { playlist: 'm3u:Morning.m3u8' });
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(names(w), ['la-440.ogg', 'mi-660.ogg']);
+  const empty = await w.fake.sceneAction('play_playlist', { playlist: 'Empty' });
+  assert.equal(empty.success, false);
+  assert.match(empty.error, /no track Mopidy can play/);
+});
+
+test('play_playlist: an unknown name lists the playlists, in the configured language', async (t) => {
+  const w = await world(t, { config: { language: 'fr' } });
+  const ack = await w.fake.sceneAction('play_playlist', {
+    device: deviceId(w.gladys),
+    playlist: 'Nope',
+  });
+  assert.equal(ack.success, false);
+  assert.equal(
+    ack.error,
+    'Aucune playlist « Nope » dans Mopidy. Playlists : Apéro, Empty, Morning',
   );
 });
 
-test('identify_device signals the chosen device and returns the declared outputs', async () => {
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'light') },
-    config,
+test('play_search: what the library finds replaces the queue', async (t) => {
+  const w = await world(t);
+  const ack = await w.fake.sceneAction('play_search', {
+    device: deviceId(w.gladys),
+    query: 'daft punk',
   });
-  assert.deepEqual(outputs, { signalled: true });
-  const declared = keysOf(declarationOf('scene_actions', 'identify_device').outputs);
-  for (const key of Object.keys(outputs)) {
-    assert.ok(declared.includes(key), `output "${key}" is not declared, the core would drop it`);
-  }
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(ack.data.outputs, { tracks: 2 });
+  assert.deepEqual(names(w), ['One More Time', 'Aerodynamic']);
+  assert.deepEqual(w.mopidy.calls.find((call) => call.method === 'core.library.search').params, {
+    query: { any: ['daft punk'] },
+  });
+  const none = await w.fake.sceneAction('play_search', { query: 'nothing like this' });
+  assert.equal(none.success, false);
+  assert.match(none.error, /no track for this search/);
+  assert.deepEqual(names(w), ['One More Time', 'Aerodynamic'], 'the queue stays');
 });
 
-test('identify_device reports a device that cannot signal itself through its output', async () => {
-  // Not a failure: a scene action is never a condition, the scene author
-  // gates the following actions on the output instead.
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'weather-station') },
-    config,
-  });
-  assert.deepEqual(outputs, { signalled: false });
+test('clear_queue stops and empties the queue', async (t) => {
+  const w = await world(t);
+  const [first] = w.mopidy.enqueue('la');
+  w.mopidy.play({ tlid: first });
+  const ack = await w.fake.sceneAction('clear_queue', { device: deviceId(w.gladys) });
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(w.mopidy.tracklist, []);
+  assert.equal(w.mopidy.state, 'stopped');
+});
+
+test('set_random: on, off and toggle, with the result as output', async (t) => {
+  const w = await world(t);
+  const run = async (mode) => {
+    const ack = await w.fake.sceneAction('set_random', { device: deviceId(w.gladys), mode });
+    assert.equal(ack.success, true, ack.error);
+    return ack.data.outputs.random;
+  };
+  assert.equal(await run('on'), true);
+  assert.equal(w.mopidy.random, true);
+  assert.equal(await run('toggle'), false);
+  assert.equal(w.mopidy.random, false);
+  assert.equal(await run('off'), false);
+});
+
+test('set_repeat: off, the whole queue, one track', async (t) => {
+  const w = await world(t);
+  const run = async (mode) => {
+    const ack = await w.fake.sceneAction('set_repeat', { device: deviceId(w.gladys), mode });
+    assert.equal(ack.success, true, ack.error);
+    return [w.mopidy.repeat, w.mopidy.single];
+  };
+  assert.deepEqual(await run('one'), [true, true]);
+  assert.deepEqual(await run('all'), [true, false]);
+  assert.deepEqual(await run('off'), [false, false]);
+});
+
+test('a server that does not answer fails the action with a sentence, the scene goes on', async (t) => {
+  const w = await world(t);
+  w.mopidy.goOffline();
+  const ack = await w.fake.sceneAction('clear_queue', { device: deviceId(w.gladys) });
+  assert.equal(ack.success, false);
+  assert.equal(ack.error, 'The Mopidy server does not answer.');
+});
+
+test('a device of a slot no longer configured is refused', async (t) => {
+  const w = await world(t, { servers: [new FakeMopidy()] });
+  const ack = await w.fake.sceneAction('clear_queue', { device: deviceId(w.gladys, 3) });
+  assert.equal(ack.success, false);
+  assert.match(ack.error, /no longer in the configuration/);
 });

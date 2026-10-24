@@ -30,6 +30,20 @@ Gladys before reporting a problem.
 
 In scope: the code of this repository and the Docker image it publishes.
 
+What the integration handles:
+
+- **Secrets**: none. Mopidy-HTTP has no authentication: keep it on your local
+  network. Credentials written inside an address to play (`http://user:pass@…`)
+  are passed to Mopidy as typed, and removed before any log line; an address of
+  a server with credentials in it is refused.
+- **Stored in `/data`**: nothing.
+- **Network**: per configured server, JSON-RPC requests (`POST /mopidy/rpc`) and
+  one WebSocket (`/mopidy/ws`) to the address and port typed in the
+  configuration, in HTTP (or HTTPS when an `https://` address is given). The
+  integration opens no port and calls no cloud service. The addresses it asks
+  Mopidy to play are fetched by Mopidy itself, not by the integration. Answers
+  larger than 5 MB are refused.
+
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
 and the third-party services and devices the integration talks to.

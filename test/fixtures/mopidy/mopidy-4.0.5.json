@@ -1,0 +1,184 @@
+{
+  "version": "4.0.5",
+  "status-stopped-empty": [
+    "stopped",
+    null,
+    0,
+    null,
+    40,
+    false,
+    false,
+    false,
+    false,
+    false,
+    0,
+    null
+  ],
+  "playlists": [
+    {
+      "__model__": "Ref",
+      "uri": "m3u:Ap%C3%A9ro.m3u8",
+      "name": "Apéro",
+      "type": "playlist"
+    },
+    {
+      "__model__": "Ref",
+      "uri": "m3u:Morning.m3u8",
+      "name": "Morning",
+      "type": "playlist"
+    }
+  ],
+  "playlist-items": [
+    {
+      "__model__": "Ref",
+      "uri": "file:///music/la-440.ogg",
+      "name": "la-440",
+      "type": "track"
+    },
+    {
+      "__model__": "Ref",
+      "uri": "file:///music/mi-660.ogg",
+      "name": "mi-660",
+      "type": "track"
+    }
+  ],
+  "tracklist-add": [
+    {
+      "__model__": "TlTrack",
+      "tlid": 1,
+      "track": {
+        "__model__": "Track",
+        "uri": "file:///music/la-440.ogg",
+        "name": "la-440.ogg",
+        "artists": [],
+        "album": null,
+        "composers": [],
+        "performers": [],
+        "genre": null,
+        "track_no": null,
+        "disc_no": null,
+        "date": null,
+        "length": 6965,
+        "bitrate": 80000,
+        "comment": null,
+        "musicbrainz_id": null,
+        "last_modified": null
+      }
+    },
+    {
+      "__model__": "TlTrack",
+      "tlid": 2,
+      "track": {
+        "__model__": "Track",
+        "uri": "file:///music/mi-660.ogg",
+        "name": "mi-660.ogg",
+        "artists": [],
+        "album": null,
+        "composers": [],
+        "performers": [],
+        "genre": null,
+        "track_no": null,
+        "disc_no": null,
+        "date": null,
+        "length": 4643,
+        "bitrate": 80000,
+        "comment": null,
+        "musicbrainz_id": null,
+        "last_modified": null
+      }
+    }
+  ],
+  "add-unknown-scheme": [],
+  "status-playing": [
+    "playing",
+    {
+      "__model__": "TlTrack",
+      "tlid": 1,
+      "track": {
+        "__model__": "Track",
+        "uri": "file:///music/la-440.ogg",
+        "name": "la-440.ogg",
+        "artists": [],
+        "album": null,
+        "composers": [],
+        "performers": [],
+        "genre": null,
+        "track_no": null,
+        "disc_no": null,
+        "date": null,
+        "length": 6965,
+        "bitrate": 80000,
+        "comment": null,
+        "musicbrainz_id": null,
+        "last_modified": null
+      }
+    },
+    1495,
+    null,
+    40,
+    false,
+    false,
+    false,
+    false,
+    false,
+    2,
+    0
+  ],
+  "status-paused-random": [
+    "paused",
+    {
+      "__model__": "TlTrack",
+      "tlid": 1,
+      "track": {
+        "__model__": "Track",
+        "uri": "file:///music/la-440.ogg",
+        "name": "la-440.ogg",
+        "artists": [],
+        "album": null,
+        "composers": [],
+        "performers": [],
+        "genre": null,
+        "track_no": null,
+        "disc_no": null,
+        "date": null,
+        "length": 6965,
+        "bitrate": 80000,
+        "comment": null,
+        "musicbrainz_id": null,
+        "last_modified": null
+      }
+    },
+    1504,
+    null,
+    40,
+    false,
+    true,
+    false,
+    false,
+    false,
+    2,
+    0
+  ],
+  "search": [],
+  "browse-root": [
+    {
+      "__model__": "Ref",
+      "uri": "file:///music",
+      "name": "Files",
+      "type": "directory"
+    }
+  ],
+  "error-unknown-method": {
+    "code": -32601,
+    "message": "Method not found",
+    "data": "No object found at 'core'"
+  },
+  "error-bad-params": {
+    "code": 0,
+    "message": "Application error",
+    "data": {
+      "type": "ValidationError",
+      "message": "Expected an integer, not 'x'"
+    }
+  }
+}

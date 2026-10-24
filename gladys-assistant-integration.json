@@ -1,147 +1,781 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Mopidy",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Control your Mopidy servers: music, volume, playlists, web radios, search, notifications.",
+    "fr": "Pilotez vos serveurs Mopidy : musique, volume, playlists, webradios, recherche, annonces.",
+    "de": "Steuere deine Mopidy-Server: Musik, Lautstärke, Playlists, Webradios, Suche, Hinweise.",
+    "es": "Controle sus servidores Mopidy: música, volumen, listas, radios web, búsqueda, avisos."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
-  "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "docker_image": "ghcr.io/guim31/gladys-mopidy:1.0.0",
+  "gladys_version": ">=5.2.0",
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-mopidy/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your Mopidy servers",
+        "fr": "Vos serveurs Mopidy",
+        "de": "Deine Mopidy-Server",
+        "es": "Sus servidores Mopidy"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Mopidy with its HTTP frontend (Mopidy-HTTP, port 6680), reachable from Gladys: set hostname = 0.0.0.0 in the [http] section of mopidy.conf. Enter its IP address (add :port if it is not 6680). Up to four servers.",
+        "fr": "Mopidy avec son interface HTTP (Mopidy-HTTP, port 6680), joignable depuis Gladys : mettez hostname = 0.0.0.0 dans la section [http] de mopidy.conf. Saisissez son adresse IP (ajoutez :port si ce n'est pas 6680). Jusqu'à quatre serveurs.",
+        "de": "Mopidy mit seiner HTTP-Schnittstelle (Mopidy-HTTP, Port 6680), von Gladys aus erreichbar: Setze hostname = 0.0.0.0 im Abschnitt [http] von mopidy.conf. Gib seine IP-Adresse ein (mit :Port, wenn es nicht 6680 ist). Bis zu vier Server.",
+        "es": "Mopidy con su interfaz HTTP (Mopidy-HTTP, puerto 6680), accesible desde Gladys: ponga hostname = 0.0.0.0 en la sección [http] de mopidy.conf. Introduzca su dirección IP (añada :puerto si no es 6680). Hasta cuatro servidores."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://docs.mopidy.com/stable/ext/http/",
+          "label": {
+            "en": "Configuring Mopidy-HTTP",
+            "fr": "Configurer Mopidy-HTTP",
+            "de": "Mopidy-HTTP konfigurieren",
+            "es": "Configurar Mopidy-HTTP"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "player_1_address",
+      "type": "string",
+      "label": {
+        "en": "Server address",
+        "fr": "Adresse du serveur",
+        "de": "Adresse des Servers",
+        "es": "Dirección del servidor"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "IP address or name of the Mopidy server, with :port if it is not 6680. The address of its web client works too.",
+        "fr": "Adresse IP ou nom du serveur Mopidy, avec :port si ce n'est pas le 6680. L'adresse de son client web marche aussi.",
+        "de": "IP-Adresse oder Name des Mopidy-Servers, mit :Port, wenn es nicht 6680 ist. Die Adresse seines Web-Clients geht auch.",
+        "es": "Dirección IP o nombre del servidor Mopidy, con :puerto si no es el 6680. La dirección de su cliente web también sirve."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.20",
+        "fr": "ex. 192.168.1.20",
+        "de": "z. B. 192.168.1.20",
+        "es": "p. ej. 192.168.1.20"
+      },
+      "required": false
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "player_1_name",
+      "type": "string",
+      "label": {
+        "en": "Name",
+        "fr": "Nom",
+        "de": "Name",
+        "es": "Nombre"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Name of the device in Gladys. Empty: \"Mopidy\" followed by the address.",
+        "fr": "Nom de l'appareil dans Gladys. Vide : « Mopidy » suivi de l'adresse.",
+        "de": "Name des Geräts in Gladys. Leer: „Mopidy“ gefolgt von der Adresse.",
+        "es": "Nombre del dispositivo en Gladys. Vacío: «Mopidy» seguido de la dirección."
+      },
+      "placeholder": {
+        "en": "e.g. Living room",
+        "fr": "ex. Salon",
+        "de": "z. B. Wohnzimmer",
+        "es": "p. ej. Salón"
+      },
+      "required": false
     },
     {
-      "key": "unit",
+      "key": "player_2",
+      "type": "section",
+      "label": {
+        "en": "Second server",
+        "fr": "Deuxième serveur",
+        "de": "Zweiter Server",
+        "es": "Segundo servidor"
+      },
+      "description": {
+        "en": "Same fields, for another Mopidy server of your network.",
+        "fr": "Mêmes champs, pour un autre serveur Mopidy de votre réseau.",
+        "de": "Dieselben Felder, für einen weiteren Mopidy-Server in deinem Netzwerk.",
+        "es": "Los mismos campos, para otro servidor Mopidy de su red."
+      }
+    },
+    {
+      "key": "player_2_address",
+      "type": "string",
+      "label": {
+        "en": "Server address",
+        "fr": "Adresse du serveur",
+        "de": "Adresse des Servers",
+        "es": "Dirección del servidor"
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.21",
+        "fr": "ex. 192.168.1.21",
+        "de": "z. B. 192.168.1.21",
+        "es": "p. ej. 192.168.1.21"
+      },
+      "required": false
+    },
+    {
+      "key": "player_2_name",
+      "type": "string",
+      "label": {
+        "en": "Name",
+        "fr": "Nom",
+        "de": "Name",
+        "es": "Nombre"
+      },
+      "required": false
+    },
+    {
+      "key": "player_3",
+      "type": "section",
+      "label": {
+        "en": "Third server",
+        "fr": "Troisième serveur",
+        "de": "Dritter Server",
+        "es": "Tercer servidor"
+      },
+      "description": {
+        "en": "Same fields, for another Mopidy server of your network.",
+        "fr": "Mêmes champs, pour un autre serveur Mopidy de votre réseau.",
+        "de": "Dieselben Felder, für einen weiteren Mopidy-Server in deinem Netzwerk.",
+        "es": "Los mismos campos, para otro servidor Mopidy de su red."
+      }
+    },
+    {
+      "key": "player_3_address",
+      "type": "string",
+      "label": {
+        "en": "Server address",
+        "fr": "Adresse du serveur",
+        "de": "Adresse des Servers",
+        "es": "Dirección del servidor"
+      },
+      "required": false
+    },
+    {
+      "key": "player_3_name",
+      "type": "string",
+      "label": {
+        "en": "Name",
+        "fr": "Nom",
+        "de": "Name",
+        "es": "Nombre"
+      },
+      "required": false
+    },
+    {
+      "key": "player_4",
+      "type": "section",
+      "label": {
+        "en": "Fourth server",
+        "fr": "Quatrième serveur",
+        "de": "Vierter Server",
+        "es": "Cuarto servidor"
+      },
+      "description": {
+        "en": "Same fields, for another Mopidy server of your network.",
+        "fr": "Mêmes champs, pour un autre serveur Mopidy de votre réseau.",
+        "de": "Dieselben Felder, für einen weiteren Mopidy-Server in deinem Netzwerk.",
+        "es": "Los mismos campos, para otro servidor Mopidy de su red."
+      }
+    },
+    {
+      "key": "player_4_address",
+      "type": "string",
+      "label": {
+        "en": "Server address",
+        "fr": "Adresse du serveur",
+        "de": "Adresse des Servers",
+        "es": "Dirección del servidor"
+      },
+      "required": false
+    },
+    {
+      "key": "player_4_name",
+      "type": "string",
+      "label": {
+        "en": "Name",
+        "fr": "Nom",
+        "de": "Name",
+        "es": "Nombre"
+      },
+      "required": false
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      },
+      "description": {
+        "en": "The notification of a server plays an address (a doorbell sound, an announcement), then puts back what was playing.",
+        "fr": "La notification d'un serveur joue une adresse (un son de sonnette, une annonce), puis remet ce qui jouait.",
+        "de": "Die Benachrichtigung eines Servers spielt eine Adresse ab (ein Klingelton, eine Durchsage) und stellt danach wieder her, was lief.",
+        "es": "La notificación de un servidor reproduce una dirección (un timbre, un aviso) y luego vuelve a lo que sonaba."
+      }
+    },
+    {
+      "key": "notification_volume",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "label": {
+        "en": "Notification volume",
+        "fr": "Volume des notifications",
+        "de": "Lautstärke der Benachrichtigungen",
+        "es": "Volumen de las notificaciones"
+      },
+      "description": {
+        "en": "Volume during a notification, back to the previous one after. Gladys does not pass on the volume of its \"Talk on a speaker\" action.",
+        "fr": "Volume pendant une notification, l'ancien revient après. Gladys ne transmet pas le volume de son action « Parler sur une enceinte ».",
+        "de": "Lautstärke während einer Benachrichtigung, danach wieder die vorherige. Gladys gibt die Lautstärke seiner Aktion „Auf einem Lautsprecher sprechen“ nicht weiter.",
+        "es": "Volumen durante una notificación, después vuelve el anterior. Gladys no transmite el volumen de su acción «Hablar en un altavoz»."
+      },
       "required": false,
-      "default": "celsius",
+      "default": "keep",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "keep",
+          "label": {
+            "en": "Unchanged",
+            "fr": "Inchangé",
+            "de": "Unverändert",
+            "es": "Sin cambios"
+          }
+        },
+        {
+          "value": "20",
+          "label": {
+            "en": "20 %",
+            "fr": "20 %",
+            "de": "20 %",
+            "es": "20 %"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "30 %",
+            "fr": "30 %",
+            "de": "30 %",
+            "es": "30 %"
+          }
+        },
+        {
+          "value": "40",
+          "label": {
+            "en": "40 %",
+            "fr": "40 %",
+            "de": "40 %",
+            "es": "40 %"
+          }
+        },
+        {
+          "value": "50",
+          "label": {
+            "en": "50 %",
+            "fr": "50 %",
+            "de": "50 %",
+            "es": "50 %"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "60 %",
+            "fr": "60 %",
+            "de": "60 %",
+            "es": "60 %"
+          }
+        },
+        {
+          "value": "70",
+          "label": {
+            "en": "70 %",
+            "fr": "70 %",
+            "de": "70 %",
+            "es": "70 %"
+          }
+        },
+        {
+          "value": "80",
+          "label": {
+            "en": "80 %",
+            "fr": "80 %",
+            "de": "80 %",
+            "es": "80 %"
+          }
+        },
+        {
+          "value": "100",
+          "label": {
+            "en": "100 %",
+            "fr": "100 %",
+            "de": "100 %",
+            "es": "100 %"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the devices",
+        "fr": "Langue des appareils",
+        "de": "Sprache der Geräte",
+        "es": "Idioma de los dispositivos"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Names given to the features when a device is added (Volume, Playlist…), and language of the messages.",
+        "fr": "Noms donnés aux fonctionnalités quand un appareil est ajouté (Volume, Playlist…), et langue des messages.",
+        "de": "Namen der Funktionen, wenn ein Gerät hinzugefügt wird (Lautstärke, Playlist…), und Sprache der Meldungen.",
+        "es": "Nombres de las funciones al añadir un dispositivo (Volumen, Lista de reproducción…) e idioma de los mensajes."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "track_started",
+      "label": {
+        "en": "Mopidy track started",
+        "fr": "Morceau Mopidy démarré",
+        "de": "Mopidy-Titel gestartet",
+        "es": "Pista de Mopidy iniciada"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "Mopidy starts a track: play, next track, a playlist, another client. Not for notifications.",
+        "fr": "Mopidy commence un morceau : lecture, morceau suivant, playlist, autre client. Pas pour les notifications.",
+        "de": "Mopidy beginnt einen Titel: Wiedergabe, nächster Titel, Playlist, anderer Client. Nicht bei Benachrichtigungen.",
+        "es": "Mopidy empieza una pista: reproducir, pista siguiente, una lista, otro cliente. No para las notificaciones."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
+          "label": {
+            "en": "Server (empty: any)",
+            "fr": "Serveur (vide : tous)",
+            "de": "Server (leer: alle)",
+            "es": "Servidor (vacío: todos)"
+          }
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "title",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Title",
+            "fr": "Titre",
+            "de": "Titel",
+            "es": "Título"
+          }
+        },
+        {
+          "key": "artist",
+          "type": "string",
+          "label": {
+            "en": "Artist",
+            "fr": "Artiste",
+            "de": "Interpret",
+            "es": "Artista"
+          }
+        },
+        {
+          "key": "album",
+          "type": "string",
+          "label": {
+            "en": "Album",
+            "fr": "Album",
+            "de": "Album",
+            "es": "Álbum"
+          }
+        },
+        {
+          "key": "uri",
+          "type": "string",
+          "label": {
+            "en": "URI",
+            "fr": "URI",
+            "de": "URI",
+            "es": "URI"
+          }
+        },
+        {
+          "key": "description",
+          "type": "string",
+          "label": {
+            "en": "Artist · album",
+            "fr": "Artiste · album",
+            "de": "Interpret · Album",
+            "es": "Artista · álbum"
+          }
+        }
+      ]
+    },
+    {
+      "key": "connection_lost",
+      "label": {
+        "en": "Mopidy server lost",
+        "fr": "Serveur Mopidy perdu",
+        "de": "Mopidy-Server verloren",
+        "es": "Servidor Mopidy perdido"
+      },
+      "description": {
+        "en": "A Mopidy server that answered stops answering: switched off, crashed, off the network.",
+        "fr": "Un serveur Mopidy qui répondait ne répond plus : éteint, planté, hors du réseau.",
+        "de": "Ein Mopidy-Server, der antwortete, antwortet nicht mehr: aus, abgestürzt, nicht im Netz.",
+        "es": "Un servidor Mopidy que respondía deja de responder: apagado, colgado, fuera de la red."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server (empty: any)",
+            "fr": "Serveur (vide : tous)",
+            "de": "Server (leer: alle)",
+            "es": "Servidor (vacío: todos)"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
+      "key": "play_playlist",
+      "label": {
+        "en": "Play a Mopidy playlist",
+        "fr": "Jouer une playlist Mopidy",
+        "de": "Mopidy-Playlist abspielen",
+        "es": "Reproducir una lista de Mopidy"
+      },
       "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+        "en": "Replaces the queue of the server with a Mopidy playlist (M3U, Jellyfin, YouTube Music…), and plays it.",
+        "fr": "Remplace la file d'attente du serveur par une playlist de Mopidy (M3U, Jellyfin, YouTube Music…), et la joue.",
+        "de": "Ersetzt die Warteschlange des Servers durch eine Mopidy-Playlist (M3U, Jellyfin, YouTube Music…) und spielt sie ab.",
+        "es": "Sustituye la cola del servidor por una lista de Mopidy (M3U, Jellyfin, YouTube Music…) y la reproduce."
+      },
+      "timeout_seconds": 20,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        },
+        {
+          "key": "playlist",
+          "type": "string",
+          "label": {
+            "en": "Playlist name",
+            "fr": "Nom de la playlist",
+            "de": "Name der Playlist",
+            "es": "Nombre de la lista"
+          },
+          "description": {
+            "en": "As shown in Mopidy (capitals and accents do not matter), or its URI.",
+            "fr": "Tel qu'affiché dans Mopidy (majuscules et accents indifférents), ou son URI.",
+            "de": "Wie in Mopidy angezeigt (Groß-/Kleinschreibung und Akzente egal) oder ihre URI.",
+            "es": "Tal como aparece en Mopidy (mayúsculas y acentos indiferentes) o su URI."
+          },
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "tracks",
+          "type": "number",
+          "label": {
+            "en": "Tracks in the queue",
+            "fr": "Morceaux dans la file",
+            "de": "Titel in der Warteschlange",
+            "es": "Pistas en la cola"
+          }
+        }
+      ]
+    },
+    {
+      "key": "play_url",
+      "label": {
+        "en": "Play an address on Mopidy",
+        "fr": "Jouer une adresse sur Mopidy",
+        "de": "Adresse auf Mopidy abspielen",
+        "es": "Reproducir una dirección en Mopidy"
+      },
+      "description": {
+        "en": "A web radio, a doorbell sound, a Mopidy URI (file:, tunein:…). Then the previous music resumes, or the address keeps playing in place of the queue.",
+        "fr": "Une webradio, un son de sonnette, une URI Mopidy (file:, tunein:…). Puis la musique d'avant reprend, ou l'adresse continue à la place de la file.",
+        "de": "Ein Webradio, ein Klingelton, eine Mopidy-URI (file:, tunein:…). Danach geht die vorherige Musik weiter, oder die Adresse läuft anstelle der Warteschlange weiter.",
+        "es": "Una radio web, un timbre, una URI de Mopidy (file:, tunein:…). Después vuelve la música anterior, o la dirección sigue en lugar de la cola."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Address",
+            "fr": "Adresse",
+            "de": "Adresse",
+            "es": "Dirección"
+          },
+          "description": {
+            "en": "http(s):// address, or a Mopidy URI (file:///…, local:track:…, tunein:station:…).",
+            "fr": "Adresse http(s)://, ou URI Mopidy (file:///…, local:track:…, tunein:station:…).",
+            "de": "http(s)://-Adresse oder eine Mopidy-URI (file:///…, local:track:…, tunein:station:…).",
+            "es": "Dirección http(s):// o una URI de Mopidy (file:///…, local:track:…, tunein:station:…)."
+          },
+          "placeholder": {
+            "en": "e.g. file:///music/doorbell.ogg",
+            "fr": "ex. file:///musique/sonnette.ogg",
+            "de": "z. B. file:///musik/klingel.ogg",
+            "es": "p. ej. file:///musica/timbre.ogg"
+          },
+          "required": true
+        },
+        {
+          "key": "after",
+          "type": "select",
+          "label": {
+            "en": "Then",
+            "fr": "Ensuite",
+            "de": "Danach",
+            "es": "Después"
+          },
+          "required": false,
+          "default": "resume",
+          "options": [
+            {
+              "value": "resume",
+              "label": {
+                "en": "Resume the previous music",
+                "fr": "Reprendre la musique d'avant",
+                "de": "Vorherige Musik fortsetzen",
+                "es": "Volver a la música anterior"
+              }
+            },
+            {
+              "value": "keep",
+              "label": {
+                "en": "Keep playing it (replaces the queue)",
+                "fr": "Continuer (remplace la file d'attente)",
+                "de": "Weiterspielen (ersetzt die Warteschlange)",
+                "es": "Seguir (sustituye la cola)"
+              }
+            }
+          ]
+        },
+        {
+          "key": "volume",
+          "type": "number",
+          "label": {
+            "en": "Volume (%)",
+            "fr": "Volume (%)",
+            "de": "Lautstärke (%)",
+            "es": "Volumen (%)"
+          },
+          "description": {
+            "en": "Empty: unchanged. With \"Resume\", the previous volume comes back after.",
+            "fr": "Vide : inchangé. Avec « Reprendre », l'ancien volume revient après.",
+            "de": "Leer: unverändert. Mit „Fortsetzen“ kommt die vorherige Lautstärke danach zurück.",
+            "es": "Vacío: sin cambios. Con «Volver», el volumen anterior vuelve después."
+          },
+          "required": false,
+          "min": 0,
+          "max": 100
+        }
+      ]
+    },
+    {
+      "key": "play_search",
+      "label": {
+        "en": "Search and play on Mopidy",
+        "fr": "Chercher et jouer sur Mopidy",
+        "de": "Auf Mopidy suchen und abspielen",
+        "es": "Buscar y reproducir en Mopidy"
+      },
+      "description": {
+        "en": "Searches the Mopidy library (every backend that searches) and plays the first 50 tracks found, in place of the queue.",
+        "fr": "Cherche dans la bibliothèque de Mopidy (tous les backends qui cherchent) et joue les 50 premiers morceaux trouvés, à la place de la file.",
+        "de": "Durchsucht die Mopidy-Bibliothek (alle Backends mit Suche) und spielt die ersten 50 gefundenen Titel anstelle der Warteschlange.",
+        "es": "Busca en la biblioteca de Mopidy (todos los backends que buscan) y reproduce las 50 primeras pistas encontradas, en lugar de la cola."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        },
+        {
+          "key": "query",
+          "type": "string",
+          "label": {
+            "en": "Search",
+            "fr": "Recherche",
+            "de": "Suche",
+            "es": "Búsqueda"
+          },
+          "description": {
+            "en": "An artist, an album, a title: searched in every field.",
+            "fr": "Un artiste, un album, un titre : cherché dans tous les champs.",
+            "de": "Ein Interpret, ein Album, ein Titel: in allen Feldern gesucht.",
+            "es": "Un artista, un álbum, un título: se busca en todos los campos."
+          },
+          "placeholder": {
+            "en": "e.g. Daft Punk",
+            "fr": "ex. Daft Punk",
+            "de": "z. B. Daft Punk",
+            "es": "p. ej. Daft Punk"
+          },
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "tracks",
+          "type": "number",
+          "label": {
+            "en": "Tracks in the queue",
+            "fr": "Morceaux dans la file",
+            "de": "Titel in der Warteschlange",
+            "es": "Pistas en la cola"
+          }
+        }
+      ]
+    },
+    {
+      "key": "clear_queue",
+      "label": {
+        "en": "Clear the Mopidy queue",
+        "fr": "Vider la file d'attente Mopidy",
+        "de": "Mopidy-Warteschlange leeren",
+        "es": "Vaciar la cola de Mopidy"
+      },
+      "description": {
+        "en": "Stops the server and removes every track from its queue.",
+        "fr": "Arrête le serveur et retire tous les morceaux de sa file d'attente.",
+        "de": "Stoppt den Server und entfernt alle Titel aus seiner Warteschlange.",
+        "es": "Detiene el servidor y quita todas las pistas de su cola."
       },
       "timeout_seconds": 15,
       "fields": [
@@ -149,29 +783,226 @@
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        }
+      ]
+    },
+    {
+      "key": "set_random",
+      "label": {
+        "en": "Mopidy random play",
+        "fr": "Lecture aléatoire Mopidy",
+        "de": "Mopidy-Zufallswiedergabe",
+        "es": "Reproducción aleatoria Mopidy"
+      },
+      "description": {
+        "en": "Turns the random order of the queue on, off, or the other way round.",
+        "fr": "Active, désactive ou inverse l'ordre aléatoire de la file d'attente.",
+        "de": "Schaltet die Zufallsreihenfolge der Warteschlange ein, aus oder um.",
+        "es": "Activa, desactiva o invierte el orden aleatorio de la cola."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        },
+        {
+          "key": "mode",
+          "type": "select",
+          "label": {
+            "en": "Random play",
+            "fr": "Lecture aléatoire",
+            "de": "Zufallswiedergabe",
+            "es": "Reproducción aleatoria"
+          },
+          "required": false,
+          "default": "on",
+          "options": [
+            {
+              "value": "on",
+              "label": {
+                "en": "On",
+                "fr": "Activer",
+                "de": "Ein",
+                "es": "Activar"
+              }
+            },
+            {
+              "value": "off",
+              "label": {
+                "en": "Off",
+                "fr": "Désactiver",
+                "de": "Aus",
+                "es": "Desactivar"
+              }
+            },
+            {
+              "value": "toggle",
+              "label": {
+                "en": "Toggle",
+                "fr": "Inverser",
+                "de": "Umschalten",
+                "es": "Invertir"
+              }
+            }
+          ]
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
+          "key": "random",
           "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "label": {
+            "en": "Random play on",
+            "fr": "Lecture aléatoire active",
+            "de": "Zufallswiedergabe an",
+            "es": "Reproducción aleatoria activa"
+          }
+        }
+      ]
+    },
+    {
+      "key": "set_repeat",
+      "label": {
+        "en": "Mopidy repeat",
+        "fr": "Répétition Mopidy",
+        "de": "Mopidy-Wiederholung",
+        "es": "Repetición Mopidy"
+      },
+      "description": {
+        "en": "Repeat nothing, the whole queue, or the current track.",
+        "fr": "Ne rien répéter, répéter toute la file, ou le morceau en cours.",
+        "de": "Nichts wiederholen, die ganze Warteschlange oder den aktuellen Titel.",
+        "es": "No repetir nada, repetir toda la cola o la pista actual."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "required": false,
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          }
+        },
+        {
+          "key": "mode",
+          "type": "select",
+          "label": {
+            "en": "Repeat",
+            "fr": "Répétition",
+            "de": "Wiederholung",
+            "es": "Repetición"
+          },
+          "required": false,
+          "default": "all",
+          "options": [
+            {
+              "value": "off",
+              "label": {
+                "en": "Off",
+                "fr": "Désactivée",
+                "de": "Aus",
+                "es": "Desactivada"
+              }
+            },
+            {
+              "value": "all",
+              "label": {
+                "en": "Whole queue",
+                "fr": "Toute la file",
+                "de": "Ganze Warteschlange",
+                "es": "Toda la cola"
+              }
+            },
+            {
+              "value": "one",
+              "label": {
+                "en": "Current track",
+                "fr": "Morceau en cours",
+                "de": "Aktueller Titel",
+                "es": "Pista actual"
+              }
+            }
+          ]
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "player",
+      "label": {
+        "en": "Mopidy player",
+        "fr": "Lecteur Mopidy",
+        "de": "Mopidy-Player",
+        "es": "Reproductor Mopidy"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "What plays (title, artist, album), the volume, buttons, and a form for volume and playlist.",
+        "fr": "Ce qui joue (titre, artiste, album), le volume, des boutons et un formulaire volume et playlist.",
+        "de": "Was läuft (Titel, Interpret, Album), Lautstärke, Tasten und ein Formular für Lautstärke, Playlist.",
+        "es": "Lo que suena (título, artista, álbum), el volumen, botones y un formulario de volumen y lista."
+      },
+      "icon": "music",
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Server",
+            "fr": "Serveur",
+            "de": "Server",
+            "es": "Servidor"
+          },
+          "description": {
+            "en": "Empty: the first server of the configuration.",
+            "fr": "Vide : le premier serveur de la configuration.",
+            "de": "Leer: der erste Server der Konfiguration.",
+            "es": "Vacío: el primer servidor de la configuración."
+          },
+          "required": false
+        }
+      ],
+      "action_timeout_seconds": 20
     }
   ]
 }
