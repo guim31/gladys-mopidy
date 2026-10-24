@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-24
+
 ### Added
 
 - One Gladys device per Mopidy server, up to four: play, pause, previous,
@@ -32,4 +34,5 @@ the notes of the version's GitHub Release.
 - A "Test the connection" button, a connection status per server, and every
   text in English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-mopidy/commits/main
+[Unreleased]: https://github.com/guim31/gladys-mopidy/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-mopidy/releases/tag/v1.0.0
