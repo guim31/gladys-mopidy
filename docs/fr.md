@@ -1,67 +1,238 @@
-# Template de démonstration
+# Mopidy
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Pilotez vos serveurs de musique [Mopidy](https://mopidy.com) depuis Gladys :
+fichiers locaux, webradios, et toutes les sources qu'une extension Mopidy
+ajoute (Jellyfin, YouTube Music, TuneIn, Subsonic…). Lecture, pause, morceau,
+volume et muet, lancement d'une playlist ou d'une recherche, son de sonnette ou
+webradio puis retour à la musique, ce qui joue sur le tableau de bord. Tout
+reste sur votre réseau local : ni cloud, ni compte.
 
-## Ce que vous obtenez
+L'intégration parle à Mopidy par son API native (Mopidy-HTTP : JSON-RPC et la
+WebSocket d'événements) : elle voit les changements à l'instant où ils
+arrivent et connaît les URI de Mopidy. Elle a été testée contre de vrais
+serveurs Mopidy, **Mopidy 3.4.2** (paquet Debian) et **4.0.5**. Si votre
+Mopidy n'expose que MPD (Mopidy-MPD), prenez plutôt l'intégration
+[gladys-mpd](https://github.com/guim31/gladys-mpd). Vos retours sont bienvenus
+dans les [issues](https://github.com/guim31/gladys-mopidy/issues).
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Cette intégration n'est pas affiliée au projet Mopidy.
+
+## Prérequis
+
+- Gladys Assistant **5.2.0** ou plus récent.
+- Mopidy 3 ou 4 avec son interface HTTP (**Mopidy-HTTP**, activée par défaut),
+  joignable depuis Gladys sur le réseau : dans `mopidy.conf`, section `[http]`,
+  mettez `hostname = 0.0.0.0` (la valeur par défaut `127.0.0.1` ne répond qu'à
+  la machine elle-même). Le port est **6680** par défaut.
+- Mopidy-HTTP n'a pas de mot de passe : gardez-le sur votre réseau domestique.
+  Un Mopidy derrière un reverse proxy en HTTPS marche aussi (saisissez
+  `https://…`), tant que le proxy ne demande pas de mot de passe à Gladys.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+1. Dans Gladys, ouvrez **Intégrations**, puis **Installer depuis GitHub**, et
+   saisissez `https://github.com/guim31/gladys-mopidy` (ou installez
+   **Mopidy** depuis le catalogue quand il y sera).
+2. Dans **Configuration**, saisissez l'adresse de votre serveur
+   (`192.168.1.20`, `mopidy.home`, `192.168.1.20:6681` pour un autre port, ou
+   l'adresse de son client web copiée depuis le navigateur,
+   `http://192.168.1.20:6680/iris/`) et un nom (`Salon`). Jusqu'à trois autres
+   serveurs en dessous.
+3. Choisissez la **Langue des appareils** (noms des fonctionnalités, messages)
+   et, si vous le souhaitez, le **Volume des notifications**. Enregistrez.
+4. Cliquez sur **Tester la connexion** : une ligne par serveur, avec la
+   version de Mopidy, ce qu'il fait, son volume et ses playlists.
+5. Ouvrez l'onglet **Découvrir** et ajoutez les appareils.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Utilisez des adresses IP fixes (une réservation DHCP dans votre box) ou des
+noms que votre DNS résout : les noms en `.local` ne se résolvent pas dans le
+conteneur de l'intégration.
 
-## Actions
+## L'appareil de chaque serveur
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+Chaque serveur Mopidy est un appareil. Gladys le montre comme un lecteur de
+musique : la boîte **Musique** du tableau de bord (lecture, pause, précédent,
+suivant, volume) et l'action de scène **Parler sur une enceinte** fonctionnent
+avec.
+
+| Fonctionnalité (noms français) | Ce qu'elle fait                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Lecture                        | Lit la file d'attente (un morceau en pause reprend où il en était).                                                      |
+| Pause                          | Met en pause.                                                                                                            |
+| Morceau précédent              | Passe au morceau précédent.                                                                                              |
+| Morceau suivant                | Passe au morceau suivant.                                                                                                |
+| Volume                         | 0 à 100 %, tel que Mopidy le voit. Sans valeur quand Mopidy n'a pas de mixer (`mixer = none`).                           |
+| Muet                           | Activé ou non : le muet du mixer de Mopidy.                                                                              |
+| État de lecture                | 1 pendant la lecture, 0 en pause ou à l'arrêt. Gardé dans l'historique, utilisable en déclencheur ou condition de scène. |
+| En cours                       | « Titre — Artiste », « En pause · … » ou « Arrêté ». Pour une webradio, le morceau qu'elle annonce.                      |
+| Playlist                       | La liste des playlists de Mopidy : en choisir une remplace la file d'attente par elle et la joue.                        |
+| Notification                   | Reçoit une adresse à jouer, puis remet ce qui jouait (voir plus bas).                                                    |
+
+La liste des playlists suit Mopidy : une playlist créée ou supprimée apparaît
+ou disparaît de la liste.
+
+## Widget du tableau de bord
+
+Ajoutez le widget **Lecteur Mopidy** à un tableau de bord. Dans ses réglages,
+choisissez un serveur (vide : le premier de la configuration). Il montre :
+
+- le **titre** du morceau et, dessous, l'artiste et l'album (ou la station
+  d'une webradio) ;
+- le **volume** en jauge ;
+- l'état (lecture, pause, arrêt), la position dans la file d'attente,
+  l'aléatoire et la répétition ;
+- quatre boutons : **Précédent**, **Lecture** ou **Pause**, **Suivant** et
+  **Options…**. Options… ouvre un formulaire rempli avec les valeurs
+  actuelles : le volume, une playlist à jouer, la lecture aléatoire et la
+  répétition. Seul ce que vous changez est envoyé.
+
+Le widget suit le serveur : il se rafraîchit en dix secondes au plus quand un
+morceau démarre, que le volume bouge ou qu'une playlist est créée. Pas de
+pochette (voir Limites).
 
 ## Scènes
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+### Déclencheurs
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+- **Morceau Mopidy démarré** : Mopidy commence un morceau — lecture, morceau
+  suivant, playlist, autre client comme Iris ou une application de téléphone.
+  Limitable à un serveur. La scène reçoit le titre, l'artiste, l'album, l'URI
+  du morceau, et « artiste · album ». Les notifications ne le déclenchent pas,
+  ni le morceau repris après l'une d'elles.
+- **Serveur Mopidy perdu** : un serveur qui répondait ne répond plus (éteint,
+  planté, hors du réseau). Limitable à un serveur ; la scène reçoit son nom.
 
-## Tableau de bord
+Savoir si la musique joue, c'est la fonctionnalité **État de lecture** :
+utilisez pour cela le déclencheur du cœur sur l'état d'un appareil.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+### Actions
+
+Le serveur se choisit parmi les appareils de l'intégration (vide : le premier
+de la configuration).
+
+- **Jouer une playlist Mopidy** : remplace la file d'attente par une playlist
+  de Mopidy, par son nom (majuscules et accents indifférents) ou son URI, et la
+  joue. Le nombre de morceaux mis en file est utilisable dans les actions
+  suivantes de la scène. Un nom inconnu fait échouer l'action avec la liste
+  des playlists. Vous pouvez aussi choisir une playlist dans une liste avec
+  l'action **Contrôler un appareil** du cœur, sur la fonctionnalité
+  **Playlist**.
+- **Jouer une adresse sur Mopidy** : joue une adresse — une webradio
+  (`http://…`, `https://…`), un son sur un serveur web, ou une URI Mopidy
+  (`file:///musique/sonnette.ogg`, `local:track:…`, `tunein:station:…`) — au
+  volume indiqué (vide : inchangé). _Ensuite_ : **Reprendre la musique
+  d'avant** (l'adresse joue une fois, puis ce qui jouait revient, voir plus
+  bas) ou **Continuer (remplace la file d'attente)**. L'action échoue quand
+  Mopidy ne peut pas lire l'adresse.
+- **Chercher et jouer sur Mopidy** : cherche dans la bibliothèque de Mopidy
+  (tous les backends qui savent chercher : fichiers locaux avec Mopidy-Local,
+  Jellyfin, YouTube Music…) un artiste, un album ou un titre, et joue les 50
+  premiers morceaux trouvés à la place de la file d'attente. Le nombre de
+  morceaux est utilisable dans les actions suivantes.
+- **Vider la file d'attente Mopidy** : arrête le serveur et retire tous les
+  morceaux de sa file d'attente.
+- **Lecture aléatoire Mopidy** : activer, désactiver ou inverser. Le résultat
+  (active ou non) est utilisable dans les actions suivantes.
+- **Répétition Mopidy** : désactivée, toute la file, ou le morceau en cours.
+
+### Notifications et « Parler sur une enceinte »
+
+La fonctionnalité **Notification** d'un serveur, l'action **Jouer une adresse
+sur Mopidy** avec _Reprendre la musique d'avant_, et l'action **Parler sur une
+enceinte** de Gladys (la voix vient de Gladys Plus) marchent toutes de la même
+façon :
+
+1. l'adresse est ajoutée en fin de file d'attente (votre file n'est jamais
+   remplacée) et jouée aussitôt, au **Volume des notifications** de la
+   configuration (ou au volume de l'action) ;
+2. Mopidy s'arrête après elle ; elle est alors retirée de la file, et le
+   volume et les options (aléatoire, répétition, single, consume) reviennent ;
+3. le morceau qui jouait reprend à la seconde où il a été coupé ; un morceau
+   en pause reste en pause, un serveur arrêté reste arrêté.
+
+Une deuxième notification pendant la première la remplace. Si quelqu'un
+reprend la main entre-temps (un autre morceau, le suivant), la notification
+s'arrête sans toucher à la musique. Une notification qui joue encore au bout
+de cinq minutes est arrêtée et la musique revient. Une webradio envoyée en
+notification n'est pas une notification : elle continue (son adresse reste
+dans la file).
+
+L'action **Parler sur une enceinte** a un curseur de volume, mais Gladys ne le
+transmet pas aux intégrations externes : utilisez le **Volume des
+notifications** de la configuration.
+
+### Idées de scènes
+
+- **Sonnette** : quand on appuie sur le bouton de la sonnette, _Jouer une
+  adresse sur Mopidy_ `file:///musique/sons/sonnette.ogg` sur le serveur du
+  salon, volume 70, puis reprendre la musique d'avant.
+- **Radio-réveil** : à 7 h en semaine, _Jouer une adresse sur Mopidy_ avec
+  l'adresse de votre radio préférée, _Continuer_, volume 25 ; à 7 h 45, la
+  fonctionnalité **Pause**.
+- **Soirée** : au coucher du soleil, _Chercher et jouer sur Mopidy_ « jazz »,
+  puis _Lecture aléatoire Mopidy_ activée.
+- **Maison vide** : quand la maison se vide, la fonctionnalité **Pause** de
+  chaque serveur.
+- **Serveur en panne** : sur _Serveur Mopidy perdu_, envoyer un message à la
+  famille : le serveur de musique du salon ne répond plus.
+
+## Rafraîchissement
+
+L'intégration garde ouverte la WebSocket d'événements de Mopidy sur chaque
+serveur : ce qui se passe sur Mopidy, depuis Gladys ou depuis un autre client,
+est dans Gladys en moins d'une seconde. En plus, chaque serveur est lu toutes
+les 30 secondes (cela vérifie aussi qu'il répond encore, et rouvre la
+WebSocket si un proxy l'a coupée), et une valeur inchangée est renvoyée toutes
+les six heures pour que Gladys ne la montre jamais comme ancienne. Seuls les
+changements sont envoyés à Gladys.
+
+Un serveur qui ne répond plus est montré injoignable (badge de transport de
+l'appareil, statut de connexion de l'intégration), et l'intégration réessaie :
+au bout de 2, 5, 15, 30 secondes, puis toutes les minutes. Rien d'autre à
+faire quand il revient.
+
+Mopidy n'a pas de quota : l'intégration envoie un lot de lectures par
+changement et un toutes les 30 secondes par serveur.
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **« ne répond pas »** : vérifiez l'adresse et le port (6680, ou le `port` de
+  la section `[http]` de `mopidy.conf`), que Mopidy écoute sur le réseau
+  (`hostname = 0.0.0.0`) et qu'aucun pare-feu ne bloque le port entre Gladys et
+  le serveur.
+- **« pas de Mopidy-HTTP à cette adresse et ce port »** : autre chose répond
+  sur ce port, ou Mopidy-HTTP est désactivé (`enabled = false` dans `[http]`).
+- **« accès refusé (un proxy devant Mopidy ?) »** : un reverse proxy demande un
+  mot de passe : laissez Gladys joindre Mopidy directement sur le port 6680.
+- **« pas d'événements en direct » dans Tester la connexion** : la WebSocket
+  `/mopidy/ws` ne s'ouvre pas (un proxy qui ne laisse pas passer les
+  WebSockets) : les états sont alors lus toutes les 30 secondes.
+- **Le volume reste vide** : Mopidy n'a pas de mixer (`mixer = none` dans la
+  section `[audio]`, pour une sortie à volume fixe) : changez le volume sur
+  l'amplificateur.
+- **Une notification ne joue pas** : l'adresse doit être joignable depuis le
+  serveur Mopidy lui-même (pas depuis Gladys), et connue d'un backend
+  installé : `http(s)://` passe par le backend Stream (intégré), `file://` par
+  un dossier de la section `[file]`, `tunein:` par l'extension TuneIn.
+  **Aucune extension de Mopidy ne sait lire cette adresse** veut dire
+  qu'aucun backend ne connaît son schéma.
+- **La liste Playlist est vide** : Mopidy n'a pas encore de playlist (les
+  playlists M3U vivent dans le `playlists_dir` de la section `[m3u]`).
+- **Plus de détails** : les journaux de l'intégration (Intégrations → Mopidy →
+  Journaux) montrent les connexions, les pertes et les retours, et une ligne
+  par commande. Relancez le conteneur avec `LOG_LEVEL=debug` pour voir chaque
+  événement reçu.
+
+## Limites
+
+- Jusqu'à quatre serveurs. Un serveur est connu par sa place dans la
+  configuration : changer son adresse garde l'appareil et son historique.
+- Pas de pochette dans le widget : Mopidy donne des adresses d'images sur son
+  propre réseau, que le tableau de bord ne joint pas forcément.
+- Pas de navigation dans la bibliothèque : playlists, recherches, adresses et
+  URI.
+- La recherche met au plus 50 morceaux en file, une playlist au plus 500.
+- Mopidy ne se trouve pas tout seul sur le réseau : saisissez les adresses.
+- Gladys ne transmet pas le volume de l'action **Parler sur une enceinte** (le
+  **Volume des notifications** s'applique).
+- Gladys 5.2.0 ou plus récent (le formulaire **Options…** du widget).

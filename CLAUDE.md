@@ -32,15 +32,19 @@ pushing.
 
 ```
 index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+src/app.js                        registers every SDK handler on the hub (tests use the same wiring)
+src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization, 4 slots
+src/hub.js                        one record per server: devices, states, transports, status, scene events, commands
+src/player.js                     one Mopidy server: connection, events, readings, commands, notifications
+src/mopidy/client.js              JSON-RPC over HTTP (batches) + the event WebSocket, errors by kind
+src/mopidy/model.js               Mopidy answers -> plain objects (status, track, playlists)
+src/devices.js                    the device of a server, its features and states
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
+src/widgets.js                    the `player` dashboard widget (manifest `widgets`)
+src/texts.js, src/issues.js       messages in four languages; repeated failures logged once
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (en and fr mandatory)
+test/                             node --test, against the SDK's fake Gladys and a fake Mopidy (test/helpers/)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +74,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, manifest texts, and `docs/{en,fr,de,es}.md`, kept in sync
+  (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +238,34 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Mopidy (propre à cette intégration)
+
+- **API native** : Mopidy-HTTP, JSON-RPC 2.0 sur `POST /mopidy/rpc` (lots acceptés, réponses dans
+  l'ordre des id) et WebSocket d'événements `/mopidy/ws`. `Content-Type: application/json` obligatoire
+  (415 sinon, protection CSRF). Aucune authentification. Mêmes réponses sur **3.4.2** (paquet Debian 13)
+  et **4.0.5** (PyPI), à part des champs `null` en plus dans les `Track` de la 4 :
+  `test/fixtures/mopidy/` (enregistrées le 24/10/2026, voir son README).
+- Une erreur JSON-RPC vaut `{ code: 0, message: "Application error", data: { type, message, traceback } }` :
+  la raison est dans `data.message`, jamais journaliser le `traceback`.
+- **`play` répond avant de changer de piste** (vu sur 3.4 et 4.0) : la lecture suivante peut encore
+  montrer l'ancienne piste en pause, et un `seek` envoyé dans le même lot que `play` est perdu.
+  D'où le délai de grâce d'une notification (`startGraceMs`) avant de la juger ratée, et la reprise en
+  deux temps (`restorePosition` : attendre que la piste soit courante, puis `pause` et `seek`).
+- Un fichier illisible (`file:///…` absent) est accepté par `tracklist.add` mais `play` ne fait rien et
+  n'annonce rien : seul l'absence de `track_playback_started` dans le délai le dit. Une URI dont aucun
+  backend ne connaît le schéma n'est pas ajoutée du tout (`[]`).
+- En mode `single`, Mopidy s'arrête après la piste et la piste courante devient `null`.
+  `tracklist.remove` d'un tlid inconnu ne lève pas d'erreur. Le `seek` marche en pause.
+- Notifications (relecture du 24/10) : une adresse `http(s)` n'est une radio que si Mopidy ne lui donne
+  pas de longueur (la voix de « Parler sur une enceinte » en a une) ; une notification attend la remise
+  en place de la précédente (`this.ending`) avant de sauvegarder l'état ; `onSetValue` ne fait que lancer
+  la notification (Gladys attend 5 s, Mopidy lit d'abord le flux) ; les journaux ne montrent d'une adresse
+  web que son hôte (jeton et texte de la voix dans le chemin).
+- La WebSocket n'est qu'un accélérateur : « connecté » veut dire que le JSON-RPC répond. Sans elle (proxy),
+  la lecture du minuteur (30 s) suffit, et la WebSocket est rouverte à chaque tick.
+- Le formulaire d'un bouton de widget est limité à **4 champs** (`validateWidgetContent`) : le muet n'y
+  est pas, c'est un interrupteur de l'appareil.
+- Banc de test réel : `Dockerfile` Debian trixie + `apt install mopidy` (ou `pip install mopidy` pour la
+  4), `[audio] output = fakesink sync=true`, fichiers générés par `gst-launch-1.0 audiotestsrc`, playlists
+  M3U ; réseau Docker `gladys-test-mopidy`, sans port publié.
