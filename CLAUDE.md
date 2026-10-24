@@ -257,6 +257,11 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   backend ne connaît le schéma n'est pas ajoutée du tout (`[]`).
 - En mode `single`, Mopidy s'arrête après la piste et la piste courante devient `null`.
   `tracklist.remove` d'un tlid inconnu ne lève pas d'erreur. Le `seek` marche en pause.
+- Notifications (relecture du 24/10) : une adresse `http(s)` n'est une radio que si Mopidy ne lui donne
+  pas de longueur (la voix de « Parler sur une enceinte » en a une) ; une notification attend la remise
+  en place de la précédente (`this.ending`) avant de sauvegarder l'état ; `onSetValue` ne fait que lancer
+  la notification (Gladys attend 5 s, Mopidy lit d'abord le flux) ; les journaux ne montrent d'une adresse
+  web que son hôte (jeton et texte de la voix dans le chemin).
 - La WebSocket n'est qu'un accélérateur : « connecté » veut dire que le JSON-RPC répond. Sans elle (proxy),
   la lecture du minuteur (30 s) suffit, et la WebSocket est rouverte à chaque tick.
 - Le formulaire d'un bouton de widget est limité à **4 champs** (`validateWidgetContent`) : le muet n'y

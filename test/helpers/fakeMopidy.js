@@ -42,6 +42,8 @@ export const LIBRARY = {
     length: 212_000,
   }),
   radio: track('http://radio.example/stream.mp3', 'Radio Example'),
+  // The voice of "Talk on a speaker": a web address with a length.
+  voice: track('https://gladys.example/tts/abc.mp3?token=x', 'abc.mp3', { length: 8000 }),
 };
 
 // A file the file backend accepts but cannot read.

@@ -182,6 +182,14 @@ export class MopidyClient extends EventEmitter {
     if (this.socket) {
       return Promise.resolve(true);
     }
+    // One opening at a time: two callers must not open two sockets.
+    this.opening ??= this.open().finally(() => {
+      this.opening = null;
+    });
+    return this.opening;
+  }
+
+  open() {
     return new Promise((resolve) => {
       let socket;
       try {

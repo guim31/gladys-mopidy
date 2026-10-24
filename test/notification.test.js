@@ -246,3 +246,37 @@ test('a server without mixer plays the notification at its volume', async (t) =>
   assert.equal(w.mopidy.volume, null);
   assert.ok(!w.mopidy.methods().includes('core.mixer.set_volume'));
 });
+
+test('a web address with a length (the voice of Gladys) is a notification, not a radio', async (t) => {
+  const w = await world(t, { timers: true, playerTimings: { streamAfterMs: 50 } });
+  const first = music(w);
+  await w.hub.records.get(1).player.refresh();
+  await notify(w, LIBRARY.voice.uri);
+  await eventually(() => w.mopidy.currentTlTrack()?.track.uri === LIBRARY.voice.uri);
+  w.mopidy.advance(500);
+  await settle(200);
+  await w.hub.records.get(1).player.refresh();
+  assert.ok(notificationOf(w), 'still a notification after streamAfterMs');
+  w.mopidy.finishTrack();
+  await eventually(() => w.mopidy.current === first && w.mopidy.position === 42_000);
+  assert.equal(w.mopidy.volume, 40);
+  assert.equal(w.mopidy.tracklist.length, 2);
+});
+
+test('a notification right after another one ended still brings the music back', async (t) => {
+  const w = await world(t);
+  const first = music(w);
+  await w.hub.records.get(1).player.refresh();
+  await notify(w);
+  await eventually(() => w.mopidy.currentTlTrack()?.track.uri === DING);
+  w.mopidy.finishTrack();
+  await notify(w, LIBRARY.la.uri);
+  await eventually(() => w.mopidy.currentTlTrack()?.track.uri === LIBRARY.la.uri);
+  w.mopidy.finishTrack();
+  await eventually(
+    () =>
+      w.mopidy.current === first && w.mopidy.state === 'playing' && w.mopidy.position === 42_000,
+  );
+  assert.equal(w.mopidy.volume, 40);
+  assert.equal(w.mopidy.tracklist.length, 2);
+});

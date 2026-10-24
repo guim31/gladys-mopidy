@@ -24,7 +24,6 @@ import { ERROR_KINDS, MopidyClient, MopidyError } from './mopidy/client.js';
 import {
   STATES,
   STATUS_CALLS,
-  isStream,
   parsePlaylists,
   parseStatus,
   parseTrack,
@@ -54,6 +53,8 @@ export const PLAYER_TIMINGS = {
   // Putting back the interrupted track: how long to wait for it to load.
   resumeTimeoutMs: 5_000,
   resumeCheckMs: 50,
+  // Without the event socket, how often a notification playing is read.
+  notificationPollMs: 1_000,
   startCheckMs: 500,
 };
 
@@ -136,6 +137,7 @@ export class Player extends EventEmitter {
     this.error = null;
     this.failures = 0;
     this.everConnected = false;
+    this.announced = false;
     this.reconnectTimer = null;
     this.debounceTimer = null;
     this.status = null;
@@ -150,6 +152,8 @@ export class Player extends EventEmitter {
     this.notification = null;
     /** The last notification being started (they start one after the other). */
     this.notifying = Promise.resolve();
+    /** The putting back of a notification that ended, while it runs. */
+    this.ending = null;
     /** The track a notification resumes: its start is not news. */
     this.resumedTlid = null;
   }
@@ -192,6 +196,8 @@ export class Player extends EventEmitter {
         return;
       }
       this.version = version;
+      // Not announced yet: a loss before `connected` is a failed attempt.
+      this.announced = false;
       this.client = client;
       this.wantPlaylists = true;
       await this.refresh();
@@ -217,6 +223,7 @@ export class Player extends EventEmitter {
     this.everConnected = true;
     this.failures = 0;
     this.error = null;
+    this.announced = true;
     this.emit('connected', { restored });
   }
 
@@ -258,7 +265,8 @@ export class Player extends EventEmitter {
     // A notification cannot be put back on a server that is gone: Mopidy
     // keeps playing it, the user sees it in the queue.
     this.dropNotification();
-    if (this.stopped) {
+    if (this.stopped || !this.announced) {
+      // During attempt(): it reports the failure and plans the next one.
       return;
     }
     this.failures = 1;
@@ -401,12 +409,15 @@ export class Player extends EventEmitter {
       try {
         playlists = parsePlaylists(await client.call('core.playlists.as_list'));
       } catch (err) {
-        if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND) {
-          this.lose(client, err);
-          throw err;
-        }
+        // Never fatal: slow backends (a streaming service, Mopidy starting)
+        // may make the listing time out while the player answers. The last
+        // list stays, and it is asked again at the next reading.
         logger.debug(`Player ${this.server.slot}: playlists not listed (${err.message})`);
-        playlists = null;
+        if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND) {
+          this.wantPlaylists = true;
+        } else {
+          playlists = null;
+        }
       }
     }
     if (this.client !== client) {
@@ -561,7 +572,7 @@ export class Player extends EventEmitter {
     if (uris.length === 0) {
       return 0;
     }
-    this.endNotificationQuietly();
+    await this.endNotificationQuietly();
     const [, , added] = await this.run([
       ['core.playback.stop'],
       ['core.tracklist.clear'],
@@ -606,7 +617,19 @@ export class Player extends EventEmitter {
         code: NOT_PLAYABLE,
       });
     }
-    await this.refresh();
+    try {
+      // A notification ending (putting the music back) is waited for: this
+      // one must save the music, not the state left by the other one.
+      await this.ending;
+      await this.refresh();
+      if (this.ending) {
+        await this.ending;
+        await this.refresh();
+      }
+    } catch (err) {
+      await client.call('core.tracklist.remove', { criteria: { tlid: [id] } }).catch(() => {});
+      throw err;
+    }
     // Read after the reading: a notification may have just ended.
     const previous = this.notification;
     const status = this.status;
@@ -614,6 +637,7 @@ export class Player extends EventEmitter {
       state: status.state,
       tlid: status.tlid,
       uri: this.track?.uri ?? null,
+      duration: status.duration,
       elapsed: status.elapsed,
       volume: status.volume,
       repeat: status.repeat,
@@ -648,6 +672,7 @@ export class Player extends EventEmitter {
       clearTimeout(previous.maxTimer);
       clearTimeout(previous.streamTimer);
       clearTimeout(previous.graceTimer);
+      clearInterval(previous.pollTimer);
       calls.push(['core.tracklist.remove', { criteria: { tlid: [previous.id] } }]);
       // It did play (or was about to): its scene action is not a failure.
       previous.settle();
@@ -679,6 +704,7 @@ export class Player extends EventEmitter {
       maxTimer: null,
       streamTimer: null,
       graceTimer: null,
+      pollTimer: null,
     };
     this.notification = notification;
     if (this.timers) {
@@ -694,6 +720,14 @@ export class Player extends EventEmitter {
         this.timings.startGraceMs + 50,
       );
       notification.graceTimer.unref?.();
+      if (!client.eventsOpen) {
+        // No event will say when it ends: read the player every second.
+        notification.pollTimer = setInterval(
+          () => this.refresh().catch(() => {}),
+          this.timings.notificationPollMs,
+        );
+        notification.pollTimer.unref?.();
+      }
     }
     try {
       await this.run(calls);
@@ -748,11 +782,17 @@ export class Player extends EventEmitter {
       if (this.now() - notification.startedAt < this.timings.startGraceMs) {
         return;
       }
-      this.endNotification(
-        notification,
-        'failed',
-        new MopidyError(ERROR_KINDS.COMMAND, 'Mopidy could not play the address'),
-      );
+      // With events, a sound that played was announced; without them, a
+      // sound shorter than a reading may end unseen: not a failure then.
+      if (this.client?.eventsOpen) {
+        this.endNotification(
+          notification,
+          'failed',
+          new MopidyError(ERROR_KINDS.COMMAND, 'Mopidy could not play the address'),
+        );
+      } else {
+        this.endNotification(notification, 'ended');
+      }
       return;
     }
     if (tlid === notification.id) {
@@ -762,7 +802,7 @@ export class Player extends EventEmitter {
           notification.playing = true;
           notification.settle();
         }
-        if (duration === null || isStream(notification.uri)) {
+        if (duration === null) {
           this.watchStream(notification);
         }
         return;
@@ -775,7 +815,7 @@ export class Player extends EventEmitter {
       // Stopped on it: the end (single mode), or an address Mopidy could not
       // play — it then stays stopped and never announces the start. A sound
       // shorter than a reading is announced by the event.
-      const failed = !notification.playing;
+      const failed = !notification.playing && Boolean(this.client?.eventsOpen);
       const error = failed
         ? new MopidyError(ERROR_KINDS.COMMAND, 'Mopidy could not play the address')
         : undefined;
@@ -811,16 +851,35 @@ export class Player extends EventEmitter {
    * @param {'ended'|'failed'|'interrupted'|'timeout'|'stream'} reason
    * @param {Error} [error]
    */
-  async endNotification(notification, reason, error) {
+  endNotification(notification, reason, error) {
     if (this.notification !== notification) {
-      return;
+      return this.ending ?? Promise.resolve();
     }
     this.notification = null;
+    const ending = this.putBack(notification, reason, error).finally(() => {
+      if (this.ending === ending) {
+        this.ending = null;
+      }
+    });
+    this.ending = ending;
+    return ending;
+  }
+
+  async putBack(notification, reason, error) {
     clearTimeout(notification.maxTimer);
     clearTimeout(notification.streamTimer);
     clearTimeout(notification.graceTimer);
+    clearInterval(notification.pollTimer);
     notification.settle(reason === 'failed' ? (error ?? new Error('failed')) : undefined);
-    const { saved } = notification;
+    let { saved } = notification;
+    if (
+      reason === 'timeout' &&
+      this.status?.state === STATES.PAUSE &&
+      saved.state !== STATES.STOP
+    ) {
+      // Someone paused the notification to get silence: the music comes back paused.
+      saved = { ...saved, state: STATES.PAUSE };
+    }
     try {
       const client = this.requireClient();
       const calls = [];
@@ -877,7 +936,9 @@ export class Player extends EventEmitter {
         break;
       }
       if (this.now() >= deadline || (tlid !== null && tlid !== saved.tlid)) {
-        return; // someone else took over, or it does not start
+        // Someone else took over, or it does not start: its next start is news.
+        this.resumedTlid = null;
+        return;
       }
       await new Promise((resolve) => setTimeout(resolve, this.timings.resumeCheckMs));
     }
@@ -885,8 +946,8 @@ export class Player extends EventEmitter {
     if (saved.state === STATES.PAUSE) {
       calls.push(['core.playback.pause']);
     }
-    // A web radio cannot seek: it simply starts again.
-    if (saved.elapsed > 0 && !isStream(saved.uri)) {
+    // A web radio (no length) cannot seek: it simply starts again.
+    if (saved.elapsed > 0 && saved.duration !== null) {
       calls.push(['core.playback.seek', { time_position: Math.round(saved.elapsed) }]);
     }
     if (calls.length > 0) {
@@ -897,9 +958,10 @@ export class Player extends EventEmitter {
   /** A command of the user replaces the queue: the notification is over, nothing to resume. */
   endNotificationQuietly() {
     const notification = this.notification;
-    if (notification) {
-      this.endNotification(notification, 'interrupted').catch(() => {});
-    }
+    const ending = notification
+      ? this.endNotification(notification, 'interrupted')
+      : (this.ending ?? Promise.resolve());
+    return ending.catch(() => {});
   }
 
   /** The server is gone: forget the notification (nothing can be put back). */
@@ -912,6 +974,7 @@ export class Player extends EventEmitter {
     clearTimeout(notification.maxTimer);
     clearTimeout(notification.streamTimer);
     clearTimeout(notification.graceTimer);
+    clearInterval(notification.pollTimer);
     notification.settle(new MopidyError(ERROR_KINDS.UNREACHABLE, 'connection lost'));
   }
 }

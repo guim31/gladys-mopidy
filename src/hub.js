@@ -38,6 +38,7 @@ import {
   labelled,
   pick,
   safeText,
+  shownUri,
 } from './texts.js';
 
 const logger = createLogger({ name: 'mopidy-hub' });
@@ -573,8 +574,13 @@ export class MopidyHub {
         await this.playPlaylist(record, value);
         return undefined;
       case FEATURE_KEYS.NOTIFICATION:
-        // Started, not awaited to its end: Gladys waits 5 s for the answer.
-        await this.notify(record, value, { volume: this.config.notificationVolume });
+        // Gladys waits 5 s for the answer, and Mopidy may take that long to
+        // read a web address before it queues it: checked, then started
+        // without waiting (a failure is logged by the player's event).
+        if (!checkUri(value)) {
+          throw new UserError(ACTION_TEXT.invalidUri, this.language);
+        }
+        this.notify(record, value, { volume: this.config.notificationVolume }).catch(() => {});
         return undefined;
       default:
         throw new Error(`Feature ${feature.external_id} cannot be controlled`);
@@ -657,9 +663,11 @@ export class MopidyHub {
     if (!uri) {
       throw new UserError(ACTION_TEXT.invalidUri, this.language);
     }
-    const shown = safeText(uri);
+    const shown = shownUri(uri);
     if (!resume) {
       return this.command(record, `play ${shown}`, async (player) => {
+        // The notification it interrupts puts its volume back first.
+        await player.endNotificationQuietly();
         if (volume !== null && player.status?.volume !== null) {
           await player.setVolume(volume);
         }

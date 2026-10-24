@@ -111,7 +111,8 @@ test('one info line per command of the user, and never the credentials of an add
   const texts = logs.texts();
   assert.equal(texts.length, 2, texts.join('\n'));
   assert.match(texts[0], /Player 1 \(Salon\): play$/);
-  assert.match(texts[1], /play http:\/\/radio\.example\.com\/stream\.mp3/);
+  // A web address loses its path and query: a TTS address carries a token.
+  assert.match(texts[1], /play http:\/\/radio\.example\.com\/…$/);
   assert.ok(!texts.join('\n').includes('secret-token'));
 });
 

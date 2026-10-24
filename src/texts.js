@@ -230,3 +230,17 @@ export class UserError extends Error {
 export function safeText(text) {
   return String(text ?? '').replace(/([a-z][a-z0-9+.-]*:\/\/)[^/\s@]*@/gi, '$1');
 }
+
+/**
+ * An address as the logs show it: a web address loses its path and query
+ * (the voice of "Talk on a speaker" carries a token and the spoken text);
+ * a Mopidy URI (`file:`, `tunein:`…) is kept.
+ */
+export function shownUri(uri) {
+  const text = safeText(uri);
+  const web = /^(https?:\/\/[^/?#\s]+)([/?#].*)?$/i.exec(text);
+  if (!web) {
+    return text;
+  }
+  return web[2] && web[2] !== '/' ? `${web[1]}/…` : web[1];
+}
