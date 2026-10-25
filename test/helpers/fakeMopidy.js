@@ -18,6 +18,7 @@
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
+import jpeg from 'jpeg-js';
 
 export const FIXTURE = JSON.parse(
   readFileSync(new URL('../fixtures/mopidy/mopidy-3.4.2.json', import.meta.url), 'utf8'),
@@ -63,12 +64,26 @@ export const IMAGES = {
   ],
 };
 
-// A tiny JPEG (the core checks the magic number), and one above 300 KB.
-export const SMALL_JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
-export const HUGE_JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.alloc(400_000),
-]);
+// A small JPEG the core accepts as it is, and one above 300 KB (noise, so
+// that it stays large): 800 × 600 px, made smaller by the integration.
+export const SMALL_JPEG = readFileSync(
+  new URL('../fixtures/artwork/baseline-420.jpg', import.meta.url),
+);
+export const HUGE_JPEG = (() => {
+  const width = 800;
+  const height = 600;
+  const data = Buffer.alloc(width * height * 4, 255);
+  let seed = 7;
+  for (let i = 0; i < data.length; i++) {
+    if (i % 4 !== 3) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      data[i] = 128 + (seed % 101) - 50;
+    }
+  }
+  return jpeg.encode({ data, width, height }, 100).data;
+})();
+// Above the 10 MB the integration reads.
+export const OVERSIZE = Buffer.alloc(11 * 1024 * 1024);
 
 // The library as `core.library.browse` walks it.
 export const TREE = {
@@ -213,7 +228,13 @@ export class FakeMopidy {
       return;
     }
     if (req.method === 'GET' && req.url.startsWith('/local/')) {
-      const image = req.url.includes('huge') ? HUGE_JPEG : SMALL_JPEG;
+      const image = req.url.includes('huge')
+        ? HUGE_JPEG
+        : req.url.includes('oversize')
+          ? OVERSIZE
+          : req.url.includes('page')
+            ? Buffer.from('<html>Not an image</html>')
+            : SMALL_JPEG;
       if (req.url.includes('chunked')) {
         // No Content-Length: the size is only known by reading.
         res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Transfer-Encoding': 'chunked' });
@@ -223,7 +244,9 @@ export class FakeMopidy {
         res.end();
         return;
       }
-      res.writeHead(200, { 'Content-Type': 'image/jpeg' }).end(image);
+      res
+        .writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': image.length })
+        .end(image);
       return;
     }
     if (req.method !== 'POST' || req.url !== '/mopidy/rpc') {

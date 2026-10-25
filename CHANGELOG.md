@@ -10,6 +10,14 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Covers above 300 KB are shown again: Mopidy-Local serves the cover file as
+  it is on disk, often a few megabytes, and Gladys refuses an image above
+  300 KB. The integration now makes such a cover a JPEG of 400 pixels at most
+  (JPEG and PNG, up to 10 MB), in plain JavaScript, within the memory of the
+  container.
+
 ## [1.1.0] - 2026-10-25
 
 ### Added

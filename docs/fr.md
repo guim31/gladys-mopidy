@@ -112,8 +112,8 @@ lecture** vaut 2 au lieu de 0 quand Mopidy est arrêté.
 Les pochettes viennent de Mopidy : Mopidy-Local donne le fichier de pochette du
 dossier de l'album ou la pochette intégrée aux fichiers, les autres extensions
 les leurs. Gladys affiche une pochette de **300 Ko au plus**, et Mopidy-Local
-ne la redimensionne pas : une pochette plus lourde laisse l'image par défaut
-(voir Limites).
+sert le fichier tel qu'il est sur le disque : l'intégration réduit une pochette
+plus lourde (un JPEG de 400 pixels au plus), jusqu'à 10 Mo (voir Limites).
 
 ## Widget du tableau de bord
 
@@ -271,7 +271,7 @@ changement et un toutes les 30 secondes par serveur.
 
 - Jusqu'à quatre serveurs. Un serveur est connu par sa place dans la
   configuration : changer son adresse garde l'appareil et son historique.
-- Les pochettes de plus de 300 Ko ne s'affichent pas (limite de Gladys) : Mopidy-Local sert la pochette telle qu'elle est sur le disque. Un `cover.jpg` d'environ 500 × 500 pixels convient.
+- Les pochettes de plus de 10 Mo ou de 25 mégapixels ne s'affichent pas, ni celles dans un autre format que JPEG, PNG et WebP (GIF…), ni les WebP de plus de 300 Ko : l'intégration ne réduit que le JPEG et le PNG.
 - La recherche de la boîte **Musique** interroge tous les backends à la fois : une extension de streaming lente la ralentit (Gladys attend 10 secondes).
 - La recherche met au plus 50 morceaux en file, une playlist au plus 500.
 - Mopidy ne se trouve pas tout seul sur le réseau : saisissez les adresses.
