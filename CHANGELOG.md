@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-25
+
 ### Fixed
 
 - Covers above 300 KB are shown again: Mopidy-Local serves the cover file as
@@ -71,6 +73,7 @@ the notes of the version's GitHub Release.
 - A "Test the connection" button, a connection status per server, and every
   text in English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-mopidy/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/guim31/gladys-mopidy/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/guim31/gladys-mopidy/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/guim31/gladys-mopidy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/guim31/gladys-mopidy/releases/tag/v1.0.0
