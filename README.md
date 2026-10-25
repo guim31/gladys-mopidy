@@ -99,8 +99,11 @@ change of track or state and on a seek: Gladys extrapolates it), the writable
 ones are confirmed by Mopidy (`has_feedback`), and the manifest declares
 `"music": { "browse": true, "search": true, "queue": true, "append": true }`
 (`src/catalog.js`). Covers are read with `core.library.get_images` and
-served to Gladys behind a key, never as a URL, up to the 300 KB the core
-accepts.
+served to Gladys behind a key, never as a URL. A cover above the 300 KB the
+core accepts (Mopidy-Local serves the file as it is on disk) is read up to
+10 MB and made a JPEG of 400 px at most by `src/artwork-resize.js`: plain
+JavaScript, no native binary, memory bounded for the 256 MB container
+(reduced JPEG decoding from the DCT coefficients, PNG inflated row by row).
 
 **Devices added with 1.0.x** keep their features and states; the new ones
 appear after **Update** in the Discover tab (Gladys offers it because the
@@ -127,8 +130,8 @@ widget stay.
 
 ## Limits
 
-- Covers above 300 KB are not shown: Mopidy-Local serves the cover file as it
-  is on disk, and the integration does not resize images.
+- Covers above 10 MB, larger than 50 megapixels, or in another format than
+  JPEG and PNG once above 300 KB (WebP, GIF…) show the placeholder.
 - Mopidy cannot be found automatically: addresses are typed.
 - Mopidy-HTTP has no authentication: keep it on your local network.
 

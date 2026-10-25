@@ -114,7 +114,9 @@ statt 0, wenn Mopidy gestoppt ist.
 Die Cover kommen von Mopidy: Mopidy-Local liefert die Cover-Datei des
 Albumordners oder das in die Dateien eingebettete Cover, andere Erweiterungen
 ihre eigenen. Gladys zeigt ein Cover von **höchstens 300 KB**, und Mopidy-Local
-verkleinert nicht: Ein größeres Cover zeigt den Platzhalter (siehe Grenzen).
+liefert die Datei so, wie sie auf der Platte liegt: Die Integration verkleinert
+ein größeres Cover (ein JPEG von höchstens 400 Pixeln), bis 10 MB (siehe
+Grenzen).
 
 ## Dashboard-Widget
 
@@ -281,7 +283,7 @@ Mopidy hat kein Kontingent: Die Integration sendet einen Stapel Abfragen pro
 
 - Bis zu vier Server. Ein Server ist über seinen Platz in der Konfiguration
   bekannt: Seine Adresse zu ändern behält das Gerät und seinen Verlauf.
-- Cover über 300 KB werden nicht angezeigt (Grenze von Gladys): Mopidy-Local liefert das Cover so, wie es auf der Platte liegt. Eine `cover.jpg` von etwa 500 × 500 Pixeln passt.
+- Cover über 10 MB oder 50 Megapixel werden nicht angezeigt, ebenso Cover über 300 KB in einem anderen Format als JPEG und PNG (WebP, GIF…): Die Integration verkleinert nur JPEG und PNG.
 - Die Suche der Box **Musik** fragt alle Backends gleichzeitig: Eine langsame Streaming-Erweiterung bremst sie (Gladys wartet 10 Sekunden).
 - Die Suche reiht höchstens 50 Titel ein, eine Playlist höchstens 500.
 - Mopidy wird nicht automatisch im Netzwerk gefunden: Gib die Adressen ein.

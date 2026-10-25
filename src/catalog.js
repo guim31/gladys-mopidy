@@ -15,10 +15,11 @@
 //     playable, and a play command refuses it;
 //   - images come from `core.library.get_images`, by URI, sometimes as a
 //     path on the server (`/local/<hash>.jpeg`), at the size of the file
-//     (Mopidy-Local does not resize).
+//     (Mopidy-Local does not resize): made smaller here (artwork-resize.js).
 // -----------------------------------------------------------------------------
 
 import { MUSIC_MEDIA_TYPES, MUSIC_PLAY_MODES } from '@gladysassistant/integration-sdk';
+import { MAX_ARTWORK_DOWNLOAD, prepareArtwork, readLimited } from './artwork-resize.js';
 import { baseName, describeTrack, isStream, parseTrack } from './mopidy/model.js';
 import { IMAGE_WIDTHS, fold } from './player.js';
 import { ACTION_TEXT, CATALOG_TEXT, UserError, pick, safeText } from './texts.js';
@@ -30,8 +31,9 @@ export const PLAYLISTS_ID = 'gladys:playlists';
 const MAX_ID = 512;
 const MAX_TEXT = 200;
 
-// The core refuses artworks above 300 KB: never read more than that.
-export const MAX_ARTWORK_BYTES = 300 * 1024;
+// A cover is read up to 10 MB, then made smaller when the core would refuse
+// it (above 300 KB, see artwork-resize.js).
+export const MAX_ARTWORK_DOWNLOAD_BYTES = MAX_ARTWORK_DOWNLOAD;
 const ARTWORK_TIMEOUT_MS = 10_000;
 
 const REF_TYPES = {
@@ -305,9 +307,10 @@ export async function queuePlay(hub, device, index) {
 }
 
 /**
- * onMusicGetArtwork: the bytes of an image whose URL artworkKey recorded,
- * read up to the 300 KB the core accepts (Mopidy-Local serves the cover as
- * it is on disk, often larger: refused here rather than sent for nothing).
+ * onMusicGetArtwork: the bytes of an image whose URL artworkKey recorded.
+ * Mopidy-Local serves the cover as it is on disk, often a few megabytes: read
+ * up to 10 MB, then made a JPEG of 400 px at most when it is above the
+ * 300 KB the core accepts (an image that fits is sent as it is).
  * @param {object} hub
  * @param {string} key
  * @returns {Promise<string>} raw base64
@@ -322,20 +325,16 @@ export async function artwork(hub, key) {
   if (!response.ok) {
     throw new Error(`Artwork ${key}: HTTP ${response.status}`);
   }
-  const tooBig = () =>
-    new Error(`Artwork ${key} is larger than 300 KB: Gladys would refuse it (use a smaller cover)`);
-  if (Number(response.headers.get('content-length')) > MAX_ARTWORK_BYTES) {
-    await response.body?.cancel().catch(() => {});
-    throw tooBig();
-  }
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response.body ?? []) {
-    size += chunk.length;
-    if (size > MAX_ARTWORK_BYTES) {
-      throw tooBig();
+  try {
+    if (Number(response.headers.get('content-length')) > MAX_ARTWORK_DOWNLOAD_BYTES) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error(`Image larger than ${MAX_ARTWORK_DOWNLOAD_BYTES / 1024 / 1024} MB`);
     }
-    chunks.push(chunk);
+    const image = await prepareArtwork(
+      await readLimited(response.body, MAX_ARTWORK_DOWNLOAD_BYTES),
+    );
+    return image.toString('base64');
+  } catch (error) {
+    throw new Error(`Artwork ${key}: ${error.message}`, { cause: error });
   }
-  return Buffer.concat(chunks).toString('base64');
 }

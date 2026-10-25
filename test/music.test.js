@@ -16,7 +16,8 @@ import {
 } from '@gladysassistant/integration-sdk';
 import { PLAYLISTS_ID, mixResults } from '../src/catalog.js';
 import { FEATURE_KEYS } from '../src/devices.js';
-import { SMALL_JPEG, TREE } from './helpers/fakeMopidy.js';
+import { HUGE_JPEG, SMALL_JPEG, TREE } from './helpers/fakeMopidy.js';
+import { imageInfo } from '../src/artwork-resize.js';
 import {
   ALBUM_URI,
   FakeMopidy,
@@ -331,20 +332,33 @@ test('the queue: a page, the current index on the full queue, a jump', async (t)
   assert.deepEqual([empty.data.total, empty.data.current_index, empty.data.items], [0, null, []]);
 });
 
-test('artwork: served from Mopidy, refused above the 300 KB Gladys accepts', async (t) => {
+test('artwork: served from Mopidy, made smaller above the 300 KB Gladys accepts', async (t) => {
   const w = await world(t);
   const small = w.gladys.artworkKey(artworkUrl(w, '/local/discovery-300x300.jpeg'));
   const answer = await w.fake.musicGetArtwork(small);
   assert.equal(answer.success, true);
+  // Small enough: sent as it is.
   assert.equal(answer.data.image, SMALL_JPEG.toString('base64'));
 
+  assert.ok(HUGE_JPEG.length > 300 * 1024);
   const huge = w.gladys.artworkKey(artworkUrl(w, '/local/huge-1600x1600.jpeg'));
-  const refused = await w.fake.musicGetArtwork(huge);
-  assert.equal(refused.success, false);
-  assert.match(refused.error, /larger than 300 KB/);
-  // Without Content-Length: stopped while reading.
+  const resized = await w.fake.musicGetArtwork(huge);
+  assert.equal(resized.success, true, resized.error);
+  const bytes = Buffer.from(resized.data.image, 'base64');
+  assert.ok(bytes.length <= 300 * 1024);
+  assert.deepEqual(imageInfo(bytes), { format: 'jpeg', width: 400, height: 300 });
+  // Without Content-Length: the same, read as a stream.
   const chunked = w.gladys.artworkKey(artworkUrl(w, '/local/huge-chunked.jpeg'));
-  assert.match((await w.fake.musicGetArtwork(chunked)).error, /larger than 300 KB/);
+  assert.equal((await w.fake.musicGetArtwork(chunked)).data.image, resized.data.image);
+
+  // Above the 10 MB read, announced or found while reading: refused.
+  const oversize = w.gladys.artworkKey(artworkUrl(w, '/local/oversize.jpeg'));
+  assert.match((await w.fake.musicGetArtwork(oversize)).error, /larger than 10 MB/);
+  const oversizeChunked = w.gladys.artworkKey(artworkUrl(w, '/local/oversize-chunked.jpeg'));
+  assert.match((await w.fake.musicGetArtwork(oversizeChunked)).error, /larger than/);
+  // Not an image (an error page served with 200).
+  const page = w.gladys.artworkKey(artworkUrl(w, '/local/page.jpeg'));
+  assert.match((await w.fake.musicGetArtwork(page)).error, /Not a PNG, JPEG or WebP/);
   assert.equal((await w.fake.musicGetArtwork('art-000000000000')).success, false);
 });
 

@@ -9,7 +9,8 @@ A Gladys Assistant **external integration**: a Node.js service (Node 22+, ESM,
 no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
-its only runtime dependency. It started from the official JavaScript template.
+with `jpeg-js` (the encoder of `src/artwork-resize.js`) as its only other runtime
+dependency. It started from the official JavaScript template.
 
 ## Commands
 
@@ -40,6 +41,7 @@ src/mopidy/client.js              JSON-RPC over HTTP (batches) + the event WebSo
 src/mopidy/model.js               Mopidy answers -> plain objects (status, track, playlists)
 src/devices.js                    the device of a server, its features, the now-playing snapshot (publishNowPlaying)
 src/catalog.js                    Gladys 5.3 music panel: browse, search, play, queue, artwork bytes (manifest `music`)
+src/artwork-resize.js             self-contained: an artwork the core refuses (> 300 KB) -> JPEG ≤ 400 px, pure JS
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    the `player` dashboard widget (manifest `widgets`)
 src/texts.js, src/issues.js       messages in four languages; repeated failures logged once
@@ -279,8 +281,13 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   Mopidy 3.4 (segfault GStreamer) à la lecture** : un dossier n'est jamais jouable ; `tracklist.index`
   garde la piste courante après `stop`. La recherche de Mopidy-Local ne rend que des pistes.
 - **Pochettes** : `library.get_images` donne des chemins sur le serveur (`/local/<hash>.jpeg`), à la taille
-  du fichier (Mopidy-Local ne redimensionne pas) ; au-delà de 300 Ko, refus explicite dans
-  `catalog.artwork` (lecture en flux plafonnée) plutôt qu'un envoi que le cœur rejetterait. Le paquet
+  du fichier (Mopidy-Local ne redimensionne pas) ; au-delà de 300 Ko, `catalog.artwork` lit jusqu'à
+  10 Mo puis `src/artwork-resize.js` (1.1.1) en fait un JPEG de 400 px au plus, en JS pur. Ce module est
+  **autonome** (rien de Mopidy, `jpeg-js` pour l'encodage seulement) et se copie tel quel dans d'autres
+  dépôts : le garder ainsi. Décodeur JPEG maison réduit par l'IDCT (1/2, 1/4, 1/8) parce que jpeg-js
+  décode en entier (~25 o/pixel : un 3000 × 3000 prend 200 Mo, un 4096 × 4096 tue un conteneur de 256 Mo) ;
+  PNG gonflé en flux, ligne par ligne. Mesuré dans un conteneur de 256 Mo : +30 Mo au plus jusqu'à
+  6000 × 4000, 2 s au pire (progressif). Fixtures `test/fixtures/artwork/` comparées à jpeg-js. Le paquet
   Debian 13 `mopidy-local` 3.2.1 est cassé (import de `imghdr`, absent de Python 3.13) : le banc prend
   `mopidy-local==3.3.0` de PyPI (+ `uritools`, `python3-setuptools`).
 - Banc de test réel : `Dockerfile` Debian trixie + `apt install mopidy` (ou `pip install mopidy` pour la

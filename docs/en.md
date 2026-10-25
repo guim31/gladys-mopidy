@@ -107,8 +107,9 @@ Two of them change: **Mute** becomes a music mute (it was a switch), and
 
 Covers come from Mopidy: Mopidy-Local gives the cover file of the album
 folder or the cover embedded in the files, other extensions their own. Gladys
-shows a cover of **300 KB at most**, and Mopidy-Local does not resize: a
-larger cover shows the placeholder (see Limits).
+shows a cover of **300 KB at most**, and Mopidy-Local serves the file as it is
+on disk: the integration makes a larger cover smaller (a JPEG of 400 pixels at
+most), up to 10 MB (see Limits).
 
 ## Dashboard widget
 
@@ -259,7 +260,7 @@ one every 30 seconds per server.
 
 - Up to four servers. A server is known by its slot in the configuration:
   changing its address keeps the device and its history.
-- Covers above 300 KB are not shown (the limit of Gladys): Mopidy-Local serves the cover as it is on disk. A `cover.jpg` of about 500 × 500 pixels fits.
+- Covers above 10 MB or 50 megapixels are not shown, nor covers above 300 KB in another format than JPEG and PNG (WebP, GIF…): the integration only reduces JPEG and PNG.
 - The search of the **Music** box asks every backend at once: a slow streaming extension slows it down (Gladys waits 10 seconds).
 - The search queues at most 50 tracks, a playlist at most 500.
 - Mopidy cannot be found automatically on the network: enter the addresses.

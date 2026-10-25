@@ -112,8 +112,9 @@ cuando Mopidy está detenido.
 Las carátulas vienen de Mopidy: Mopidy-Local da el archivo de carátula de la
 carpeta del álbum o la carátula integrada en los archivos, las demás
 extensiones las suyas. Gladys muestra una carátula de **300 KB como máximo**, y
-Mopidy-Local no la reduce: una carátula más pesada muestra la imagen por
-defecto (vea Límites).
+Mopidy-Local sirve el archivo tal como está en el disco: la integración reduce
+una carátula más pesada (un JPEG de 400 píxeles como máximo), hasta 10 MB (vea
+Límites).
 
 ## Widget del panel
 
@@ -271,7 +272,7 @@ uno cada 30 segundos por servidor.
 
 - Hasta cuatro servidores. Un servidor se conoce por su lugar en la
   configuración: cambiar su dirección conserva el dispositivo y su historial.
-- Las carátulas de más de 300 KB no se muestran (límite de Gladys): Mopidy-Local sirve la carátula tal como está en el disco. Un `cover.jpg` de unos 500 × 500 píxeles sirve.
+- Las carátulas de más de 10 MB o de 50 megapíxeles no se muestran, ni las de más de 300 KB en otro formato que JPEG y PNG (WebP, GIF…): la integración solo reduce JPEG y PNG.
 - La búsqueda de la caja **Música** consulta todos los backends a la vez: una extensión de streaming lenta la ralentiza (Gladys espera 10 segundos).
 - La búsqueda pone como máximo 50 pistas en la cola, una lista como máximo 500.
 - Mopidy no se encuentra solo en la red: introduzca las direcciones.
