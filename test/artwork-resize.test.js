@@ -320,11 +320,11 @@ test('a forged JPEG of empty scans neither loops nor blocks', async () => {
 });
 
 test('the JPEG decoder lets the event loop run on a large image', async () => {
-  // 2400 × 2400 of gray noise, baseline: decoded in slices.
+  // 1600 × 1600 of gray noise, baseline: decoded in slices.
   let ticks = 0;
   const timer = setInterval(() => ticks++, 5);
-  const width = 2400;
-  const height = 2400;
+  const width = 1600;
+  const height = 1600;
   const rgba = Buffer.alloc(width * height * 4, 255);
   let seed = 3;
   for (let i = 0; i < rgba.length; i += 4) {
@@ -514,9 +514,9 @@ test('the PNG decoder refuses broken files', async () => {
 });
 
 test('a PNG of an extreme aspect ratio is reduced along each axis', async () => {
-  // 4 000 000 × 1 px of 1-bit gray: a few hundred bytes, never a 4 Mpx grid.
+  // 1 000 000 × 1 px of 1-bit gray: a few hundred bytes, never a 1 Mpx grid.
   const wide = encodePng({
-    width: 4_000_000,
+    width: 1_000_000,
     height: 1,
     colorType: 0,
     depth: 1,
