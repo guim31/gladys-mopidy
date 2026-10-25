@@ -31,7 +31,7 @@ import {
   slotOf,
 } from './devices.js';
 import { createIssueLog } from './issues.js';
-import { ERROR_KINDS, MopidyError } from './mopidy/client.js';
+import { ERROR_KINDS, MopidyError, TOO_LARGE } from './mopidy/client.js';
 import { STATES, describeTrack } from './mopidy/model.js';
 import { NOT_PLAYABLE, Player, checkUri, repeatMode } from './player.js';
 import {
@@ -560,6 +560,8 @@ export class MopidyHub {
         let text = ACTION_TEXT.unreachable;
         if (err.code === NOT_PLAYABLE) {
           text = ACTION_TEXT.notPlayable;
+        } else if (err.code === TOO_LARGE) {
+          text = ACTION_TEXT.tooLarge;
         } else if (err.kind === ERROR_KINDS.COMMAND) {
           text = ACTION_TEXT.refused;
         }

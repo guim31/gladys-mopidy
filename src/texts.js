@@ -177,6 +177,12 @@ export const ACTION_TEXT = {
     de: 'Ein Ordner kann nicht abgespielt werden: öffne ihn und spiele seinen Inhalt ab.',
     es: 'Una carpeta no se puede reproducir: ábrala y reproduzca lo que contiene.',
   },
+  tooLarge: {
+    en: 'Mopidy answered with too much at once (over 5 MB): open a smaller folder or refine the search.',
+    fr: 'Mopidy a répondu avec trop de données d’un coup (plus de 5 Mo) : ouvrez un dossier plus petit ou affinez la recherche.',
+    de: 'Mopidy hat zu viel auf einmal geantwortet (über 5 MB): Öffne einen kleineren Ordner oder verfeinere die Suche.',
+    es: 'Mopidy ha respondido con demasiados datos a la vez (más de 5 MB): abra una carpeta más pequeña o afine la búsqueda.',
+  },
   notInQueue: {
     en: 'This item is no longer in the queue.',
     fr: "Cet élément n'est plus dans la file d'attente.",

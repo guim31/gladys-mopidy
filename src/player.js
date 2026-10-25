@@ -20,7 +20,7 @@
 
 import { EventEmitter } from 'node:events';
 import { createLogger } from '@gladysassistant/integration-sdk';
-import { ERROR_KINDS, MopidyClient, MopidyError, serverUrl } from './mopidy/client.js';
+import { ERROR_KINDS, MopidyClient, MopidyError, TOO_LARGE, serverUrl } from './mopidy/client.js';
 import {
   REPEAT_MODES,
   STATES,
@@ -57,6 +57,10 @@ export const PLAYER_TIMINGS = {
   // Putting back the interrupted track: how long to wait for it to load.
   resumeTimeoutMs: 5_000,
   resumeCheckMs: 50,
+  // How long a reading waits for the artwork of a new track (a web backend
+  // may look it up online): past it, the track is shown without it, and the
+  // next reading asks again.
+  artworkTimeoutMs: 2_000,
   // Without the event socket, how often a notification playing is read.
   notificationPollMs: 1_000,
   startCheckMs: 500,
@@ -419,11 +423,16 @@ export class Player extends EventEmitter {
     const { status, track } = parseStatus(results);
     if ((track?.uri ?? null) !== this.artworkFor) {
       // Once per track: Mopidy gives its images by URI, never in the track.
-      this.artworkFor = track?.uri ?? null;
-      this.artworkUrl = track
-        ? ((await this.images(client, [track.uri], IMAGE_WIDTHS.NOW_PLAYING)).get(track.uri) ??
-          null)
-        : null;
+      // Awaited so that a track change is one batch of states, but briefly:
+      // a web backend may be slow, and a command waits for this reading.
+      const images = track
+        ? await this.images(client, [track.uri], IMAGE_WIDTHS.NOW_PLAYING, {
+            timeoutMs: this.timings.artworkTimeoutMs,
+          })
+        : new Map();
+      this.artworkUrl = track ? (images.get(track.uri) ?? null) : null;
+      // Not read (error, timeout): asked again at the next reading.
+      this.artworkFor = images.failed ? null : (track?.uri ?? null);
     }
     if (this.client !== client) {
       return;
@@ -448,7 +457,8 @@ export class Player extends EventEmitter {
     try {
       answers = await client.batch(calls);
     } catch (err) {
-      if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND) {
+      // An answer too large is a request asking too much, not a lost server.
+      if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND && err.code !== TOO_LARGE) {
         this.lose(client, err);
       }
       throw err;
@@ -581,8 +591,9 @@ export class Player extends EventEmitter {
 
   /**
    * Start a media of the catalog: a playlist is queued through its items
-   * (Mopidy's M3U backend cannot look a playlist URI up), anything else by
-   * its URI (an album or an artist expands to its tracks).
+   * (Mopidy's M3U backend cannot look a playlist URI up), an album or an
+   * artist through its tracks (at most MAX_QUEUED_TRACKS: an artist of a
+   * streaming service may have thousands), a track or a radio by its URI.
    * @param {string} uri
    * @param {string} type MediaItem type
    * @param {'replace'|'next'|'append'} mode
@@ -596,6 +607,9 @@ export class Player extends EventEmitter {
       if (Array.isArray(items)) {
         uris = trackUris(items).slice(0, MAX_QUEUED_TRACKS);
       }
+    } else if (type === 'album' || type === 'artist') {
+      const found = await client.call('core.library.lookup', { uris: [uri] });
+      uris = trackUris(found?.[uri]).slice(0, MAX_QUEUED_TRACKS);
     }
     if (mode === 'replace') {
       return this.replaceQueue(uris);
@@ -661,15 +675,25 @@ export class Player extends EventEmitter {
    * @param {MopidyClient} [client]
    * @param {string[]} uris
    * @param {number} minWidth
-   * @returns {Promise<Map<string, string>>}
+   * @param {{ timeoutMs?: number }} [options] give up after this long
+   * @returns {Promise<Map<string, string>>} with `failed` set when not read
    */
-  async images(client, uris, minWidth) {
+  async images(client, uris, minWidth, { timeoutMs } = {}) {
     const found = new Map();
     if (!client || uris.length === 0) {
       return found;
     }
+    let timer;
     try {
-      const raw = await client.call('core.library.get_images', { uris });
+      const call = client.call('core.library.get_images', { uris });
+      const raw = timeoutMs
+        ? await Promise.race([
+            call,
+            new Promise((resolve, reject) => {
+              timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+            }),
+          ])
+        : await call;
       for (const uri of uris) {
         const image = pickImage(raw?.[uri], minWidth);
         if (image) {
@@ -677,7 +701,10 @@ export class Player extends EventEmitter {
         }
       }
     } catch (err) {
+      found.failed = true;
       logger.debug(`Player ${this.server.slot}: images not read (${err.message})`);
+    } finally {
+      clearTimeout(timer);
     }
     return found;
   }

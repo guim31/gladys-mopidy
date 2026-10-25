@@ -434,7 +434,7 @@ export function nowPlaying(status, track, artworkUrl = null) {
   };
   if (track?.streamTitle) {
     snapshot.title = track.streamTitle;
-    snapshot.album = track.name ?? '';
+    snapshot.album = track.name && track.name !== track.streamTitle ? track.name : '';
   } else if (track) {
     snapshot.title = describeTrack(track).title ?? '';
     snapshot.artist = track.artist ?? '';

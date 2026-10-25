@@ -16,7 +16,7 @@ import {
 } from '@gladysassistant/integration-sdk';
 import { PLAYLISTS_ID, mixResults } from '../src/catalog.js';
 import { FEATURE_KEYS } from '../src/devices.js';
-import { SMALL_JPEG } from './helpers/fakeMopidy.js';
+import { SMALL_JPEG, TREE } from './helpers/fakeMopidy.js';
 import {
   ALBUM_URI,
   FakeMopidy,
@@ -82,7 +82,8 @@ test('what plays is published once per change, cleared when nothing is loaded', 
   const key = state(w, FEATURE_KEYS.ARTWORK);
   assert.equal(key, w.gladys.artworkKey(artworkUrl(w, '/local/discovery-300x300.jpeg')));
 
-  // A reading 30 s later: the position moved as Gladys extrapolates it, nothing sent.
+  // A reading 1 s later: the position moved as Gladys extrapolates it, nothing sent
+  // (the SDK republishes a position only past 3 s of drift, test/music of the SDK).
   const positions = published(w, FEATURE_KEYS.POSITION);
   const titles = published(w, FEATURE_KEYS.TITLE);
   w.mopidy.advance(1_000);
@@ -341,6 +342,9 @@ test('artwork: served from Mopidy, refused above the 300 KB Gladys accepts', asy
   const refused = await w.fake.musicGetArtwork(huge);
   assert.equal(refused.success, false);
   assert.match(refused.error, /larger than 300 KB/);
+  // Without Content-Length: stopped while reading.
+  const chunked = w.gladys.artworkKey(artworkUrl(w, '/local/huge-chunked.jpeg'));
+  assert.match((await w.fake.musicGetArtwork(chunked)).error, /larger than 300 KB/);
   assert.equal((await w.fake.musicGetArtwork('art-000000000000')).success, false);
 });
 
@@ -348,4 +352,59 @@ test('a catalog command for a server removed from the configuration fails cleanl
   const w = await world(t, { servers: [new FakeMopidy()] });
   const answer = await w.fake.musicBrowse({ external_id: 'ext:nope:mopidy:9', params: [] });
   assert.equal(answer.success, false);
+});
+
+test('a playlist added on disk opens before Mopidy announces it', async (t) => {
+  const w = await world(t);
+  // The M3U backend reads its folder at each listing, without an event.
+  w.mopidy.playlists.push({ uri: 'm3u:New.m3u8', name: 'New', items: ['la'] });
+  const items = await w.fake.musicBrowse(device(w), { parentId: 'm3u:New.m3u8' });
+  assert.deepEqual(
+    items.data.items.map((i) => i.title),
+    ['la-440.ogg'],
+  );
+});
+
+test('a queue row whose URI is too long keeps the rows aligned with the queue', async (t) => {
+  const w = await world(t);
+  const long = `file:///music/${'x'.repeat(600)}.ogg`;
+  const [first] = w.mopidy.enqueue('la', long, 'mi');
+  w.mopidy.play({ tlid: first });
+  await settle();
+  const page = await w.fake.musicQueueGet(device(w));
+  assert.equal(page.data.items.length, 3);
+  assert.equal(page.data.items[2].title, 'mi-660.ogg');
+  assert.ok(page.data.items[1].id.length <= 512);
+  assert.deepEqual(validateMediaItems(page.data.items), []);
+});
+
+test('an artist with thousands of tracks queues 500 of them', async (t) => {
+  const w = await world(t);
+  w.mopidy.lookups = {
+    'spotify:artist:many': Array.from({ length: 1200 }, (_, i) => ({
+      __model__: 'Track',
+      uri: `http://tracks.example/${i}.mp3`,
+      name: `Track ${i}`,
+      length: 1000,
+    })),
+  };
+  const answer = await w.fake.musicPlay(device(w), { id: 'spotify:artist:many', type: 'artist' });
+  assert.equal(answer.success, true);
+  assert.equal(w.mopidy.tracklist.length, 500);
+});
+
+test('an answer too large is refused without losing the server', async (t) => {
+  // 6 MB to build and send: room for a loaded CI runner.
+  const w = await world(t, { clientTimings: { requestMs: 10_000, socketOpenMs: 500 } });
+  TREE['file:///huge'] = Array.from({ length: 40_000 }, (_, i) => ({
+    __model__: 'Ref',
+    uri: `file:///huge/${'n'.repeat(100)}${i}.ogg`,
+    name: `${i}.ogg`,
+    type: 'track',
+  }));
+  t.after(() => delete TREE['file:///huge']);
+  const answer = await w.fake.musicBrowse(device(w), { parentId: 'file:///huge' });
+  assert.equal(answer.success, false);
+  assert.match(answer.error, /too much at once/);
+  assert.equal(w.hub.records.get(1).player.connected, true);
 });

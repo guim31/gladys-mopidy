@@ -63,14 +63,20 @@ export function refItem(ref) {
   };
 }
 
-/** A MediaItem from a Mopidy Track (search results, queue). Null when unusable. */
-export function trackItem(raw) {
+/**
+ * A MediaItem from a Mopidy Track (search results, queue). Null when unusable.
+ * @param {object} raw
+ * @param {{ queue?: boolean }} [options] queue: never null for a track with a
+ *   URI (a queue row played by its index, its id cut at 512 characters), so
+ *   the rows stay aligned with the indexes of the queue
+ */
+export function trackItem(raw, { queue = false } = {}) {
   const track = parseTrack(raw);
-  if (!track || !usableId(track.uri)) {
+  if (!track || !(usableId(track.uri) || (queue && track.uri !== ''))) {
     return null;
   }
   const item = {
-    id: track.uri,
+    id: track.uri.slice(0, MAX_ID),
     type: isStream(track.uri) ? MUSIC_MEDIA_TYPES.RADIO : MUSIC_MEDIA_TYPES.TRACK,
     title: describeTrack(track).title ?? track.uri.slice(0, MAX_TEXT),
     duration: track.length === null ? null : Math.round(track.length / 1000),
@@ -170,12 +176,13 @@ export async function browse(hub, device, { parentId = null, offset = 0, limit =
           .map((ref) => refItem({ ...ref, type: 'playlist' }))
           .filter(Boolean)
           .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-      } else if ((player.playlists ?? []).some((playlist) => playlist.uri === parentId)) {
-        items = (await player.library('core.playlists.get_items', { uri: parentId })) ?? [];
-        items = items.map((ref) => refItem({ ...ref, type: ref.type ?? 'track' }));
       } else {
-        items = (await player.library('core.library.browse', { uri: parentId })) ?? [];
-        items = items.map(refItem);
+        // A playlist opens through its items (browse answers [] for an M3U
+        // URI); anything else is not a playlist (null) and is browsed.
+        const playlist = await player.library('core.playlists.get_items', { uri: parentId });
+        items = Array.isArray(playlist)
+          ? playlist.map((ref) => refItem({ ...ref, type: ref.type ?? 'track' }))
+          : ((await player.library('core.library.browse', { uri: parentId })) ?? []).map(refItem);
       }
       const all = unique(items);
       const page = all.slice(offset, offset + limit);
@@ -261,8 +268,18 @@ export async function queueGet(hub, device, { offset = 0, limit = 50 } = {}) {
     `queue ${offset}+${limit}`,
     async (player) => {
       const { tlTracks, index, length } = await player.queuePage(offset, limit);
-      // A track queued twice is two rows: no de-duplication here.
-      const items = tlTracks.map((tlTrack) => trackItem(tlTrack?.track)).filter(Boolean);
+      // A track queued twice is two rows: no de-duplication here, and no row
+      // dropped (the page must stay aligned with the indexes of the queue).
+      const items = tlTracks.map(
+        (tlTrack) =>
+          trackItem(tlTrack?.track, { queue: true }) ?? {
+            id: `tlid:${tlTrack?.tlid}`,
+            type: MUSIC_MEDIA_TYPES.TRACK,
+            title: '?',
+            browsable: false,
+            playable: true,
+          },
+      );
       return {
         items: await withArtwork(hub, record, items),
         // Stopped with a track loaded, Mopidy keeps it current: play resumes it.

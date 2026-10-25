@@ -26,6 +26,10 @@ export const ERROR_KINDS = Object.freeze({
   COMMAND: 'command', // Mopidy answered with a JSON-RPC error
 });
 
+// The code of the error thrown for an answer above MAX_ANSWER_BYTES: Mopidy
+// answers, the request asked too much (a huge library level, a huge artist).
+export const TOO_LARGE = 'too_large';
+
 export class MopidyError extends Error {
   /**
    * @param {string} kind one of ERROR_KINDS
@@ -156,10 +160,10 @@ export class MopidyClient extends EventEmitter {
     try {
       text = await readLimited(response, MAX_ANSWER_BYTES);
     } catch (err) {
-      throw new MopidyError(
-        err.name === 'MopidyError' ? err.kind : ERROR_KINDS.UNREACHABLE,
-        err.message,
-      );
+      if (err.name === 'MopidyError') {
+        throw err;
+      }
+      throw new MopidyError(ERROR_KINDS.UNREACHABLE, err.message);
     }
     try {
       return JSON.parse(text);
@@ -304,7 +308,7 @@ async function readLimited(response, max) {
   const declared = Number(response.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > max) {
     await response.body?.cancel().catch(() => {});
-    throw new MopidyError(ERROR_KINDS.NOT_MOPIDY, 'answer too large');
+    throw new MopidyError(ERROR_KINDS.NOT_MOPIDY, 'answer too large', { code: TOO_LARGE });
   }
   if (!response.body) {
     return response.text();
@@ -320,7 +324,7 @@ async function readLimited(response, max) {
     size += value.byteLength;
     if (size > max) {
       await reader.cancel().catch(() => {});
-      throw new MopidyError(ERROR_KINDS.NOT_MOPIDY, 'answer too large');
+      throw new MopidyError(ERROR_KINDS.NOT_MOPIDY, 'answer too large', { code: TOO_LARGE });
     }
     chunks.push(value);
   }

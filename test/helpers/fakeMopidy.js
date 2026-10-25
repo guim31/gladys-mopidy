@@ -214,7 +214,15 @@ export class FakeMopidy {
     }
     if (req.method === 'GET' && req.url.startsWith('/local/')) {
       const image = req.url.includes('huge') ? HUGE_JPEG : SMALL_JPEG;
-      this.imageRequests = (this.imageRequests ?? 0) + 1;
+      if (req.url.includes('chunked')) {
+        // No Content-Length: the size is only known by reading.
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Transfer-Encoding': 'chunked' });
+        for (let at = 0; at < image.length; at += 64 * 1024) {
+          res.write(image.subarray(at, at + 64 * 1024));
+        }
+        res.end();
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'image/jpeg' }).end(image);
       return;
     }
@@ -480,6 +488,16 @@ export class FakeMopidy {
       'core.tracklist.slice': ({ start, end }) =>
         this.tracklist.slice(start, end).map((item) => ({ __model__: 'TlTrack', ...item })),
       'core.library.browse': ({ uri }) => TREE[uri ?? 'root'] ?? [],
+      'core.library.lookup': ({ uris = [] }) =>
+        Object.fromEntries(
+          uris.map((uri) => [
+            uri,
+            this.lookups?.[uri] ??
+              (TREE[uri] ?? [])
+                .map((ref) => Object.values(LIBRARY).find((t) => t.uri === ref.uri))
+                .filter(Boolean),
+          ]),
+        ),
       'core.library.get_images': ({ uris = [] }) =>
         Object.fromEntries(
           uris.map((uri) => [uri, (IMAGES[uri] ?? []).map((i) => ({ __model__: 'Image', ...i }))]),
