@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-25
+
 ### Added
 
 - The music player of Gladys 5.3: the **Music** box of the dashboard shows
@@ -61,5 +63,6 @@ the notes of the version's GitHub Release.
 - A "Test the connection" button, a connection status per server, and every
   text in English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-mopidy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/guim31/gladys-mopidy/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/guim31/gladys-mopidy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/guim31/gladys-mopidy/releases/tag/v1.0.0
