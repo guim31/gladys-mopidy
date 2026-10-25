@@ -272,7 +272,7 @@ uno cada 30 segundos por servidor.
 
 - Hasta cuatro servidores. Un servidor se conoce por su lugar en la
   configuración: cambiar su dirección conserva el dispositivo y su historial.
-- Las carátulas de más de 10 MB o de 50 megapíxeles no se muestran, ni las de más de 300 KB en otro formato que JPEG y PNG (WebP, GIF…): la integración solo reduce JPEG y PNG.
+- Las carátulas de más de 10 MB o de 25 megapíxeles no se muestran, ni las de otro formato que JPEG, PNG y WebP (GIF…), ni las WebP de más de 300 KB: la integración solo reduce JPEG y PNG.
 - La búsqueda de la caja **Música** consulta todos los backends a la vez: una extensión de streaming lenta la ralentiza (Gladys espera 10 segundos).
 - La búsqueda pone como máximo 50 pistas en la cola, una lista como máximo 500.
 - Mopidy no se encuentra solo en la red: introduzca las direcciones.

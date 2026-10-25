@@ -130,8 +130,8 @@ widget stay.
 
 ## Limits
 
-- Covers above 10 MB, larger than 50 megapixels, or in another format than
-  JPEG and PNG once above 300 KB (WebP, GIF…) show the placeholder.
+- Covers above 10 MB or 25 megapixels, in another format than JPEG, PNG and
+  WebP (GIF…), or in WebP above 300 KB show the placeholder.
 - Mopidy cannot be found automatically: addresses are typed.
 - Mopidy-HTTP has no authentication: keep it on your local network.
 

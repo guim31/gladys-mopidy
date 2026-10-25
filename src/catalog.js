@@ -321,8 +321,14 @@ export async function artwork(hub, key) {
     throw new Error(`Unknown artwork ${key}`);
   }
   const fetchImpl = hub.playerOptions.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(url, { signal: AbortSignal.timeout(ARTWORK_TIMEOUT_MS) });
+  let response;
+  try {
+    response = await fetchImpl(url, { signal: AbortSignal.timeout(ARTWORK_TIMEOUT_MS) });
+  } catch (error) {
+    throw new Error(`Artwork ${key}: ${error.message}`, { cause: error });
+  }
   if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
     throw new Error(`Artwork ${key}: HTTP ${response.status}`);
   }
   try {

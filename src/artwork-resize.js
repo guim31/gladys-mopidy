@@ -24,7 +24,10 @@
 //     a reduced grid: two rows in memory, never the bitmap.
 //   - The pixel count is capped (decoding time), and so is the memory the
 //     decoder would allocate, both checked on the header, before allocating.
-//   - Resizings run one at a time.
+//     A forged JPEG cannot loop over empty scans: at most 100 scans, and a
+//     scan whose data ran out stops.
+//   - Resizings run one at a time, and the JPEG decoder yields to the event
+//     loop every 40 ms (the PNG one is a stream).
 //
 // Not handled: arithmetic-coded, lossless, hierarchical and 12-bit JPEG,
 // the EXIF orientation (covers are upright), color profiles. Transparent PNG
@@ -44,8 +47,8 @@ export const ARTWORK_DEFAULTS = Object.freeze({
   maxSize: 400,
   /** The core refuses a side above 4096 px. */
   maxDimension: 4096,
-  /** Larger images are refused (decoding time). */
-  maxPixels: 50_000_000,
+  /** Larger images are refused (decoding time: ~2 s for 25 Mpx). */
+  maxPixels: 25_000_000,
   /** Memory the decoder may allocate for one image. */
   maxDecodeBytes: 48 * 1024 * 1024,
   /** JPEG quality of a resized artwork (lowered if it does not fit). */
@@ -247,7 +250,7 @@ async function resizeArtwork(data, info, o) {
     height: Math.max(1, Math.round(height * scale)),
   };
   const reduced =
-    info.format === 'jpeg' ? decodeJpeg(data, target, o) : await decodePng(data, target, o);
+    info.format === 'jpeg' ? await decodeJpeg(data, target, o) : await decodePng(data, target, o);
   const rgba = resample(reduced, target.width, target.height);
   for (const quality of [o.quality, 70, 55, 40]) {
     const encoded = jpeg.encode(
@@ -365,6 +368,14 @@ const SCALED = new Map(
   }),
 );
 
+// A real progressive JPEG has about ten scans; more is a forged file.
+const MAX_SCANS = 100;
+// Zero bytes a scan may read past its data (the reader prefetches 4) before
+// it is cut short.
+const MAX_PADDING = 64;
+// The longest stretch of decoding between two yields to the event loop.
+const SLICE_MS = 40;
+
 function buildHuffman(counts, symbols) {
   const lookup = new Uint16Array(512); // 9-bit codes: (length << 8) | symbol
   const maxcode = new Int32Array(17).fill(-1);
@@ -397,7 +408,7 @@ function buildHuffman(counts, symbols) {
  * the image at least as large as the target.
  * @returns {{ width: number, height: number, data: Uint8Array }} RGB
  */
-export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
+export async function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
   const quant = [];
   const dcTables = [];
   const acTables = [];
@@ -411,6 +422,9 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
   let bits = 0;
   let count = 0;
   let marker = false;
+  // Zero bytes fed since the reader met a marker: a scan whose data ran out
+  // (truncated, or forged: empty scans over a large frame) is cut short.
+  let padding = 0;
   const fill = () => {
     while (count <= 24) {
       let byte = 0;
@@ -427,6 +441,8 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
         } else {
           pos += 1;
         }
+      } else {
+        padding += 1;
       }
       bits = ((bits << 8) | byte) >>> 0;
       count += 8;
@@ -467,6 +483,7 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
     bits = 0;
     count = 0;
     marker = false;
+    padding = 0;
   };
 
   let k = 8;
@@ -686,8 +703,9 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
     const mcusPerColumn = Math.ceil(height / (8 * maxV));
     let memory = 0;
     for (const c of components) {
-      c.blocksPerLine = Math.ceil((Math.ceil(width / 8) * c.h) / maxH);
-      c.blocksPerColumn = Math.ceil((Math.ceil(height / 8) * c.v) / maxV);
+      // As libjpeg: the blocks of the component's own samples.
+      c.blocksPerLine = Math.ceil(Math.ceil((width * c.h) / maxH) / 8);
+      c.blocksPerColumn = Math.ceil(Math.ceil((height * c.v) / maxV) / 8);
       c.blocksPerLineForMcu = mcusPerLine * c.h;
       c.blocksPerColumnForMcu = mcusPerColumn * c.v;
       c.planeWidth = c.blocksPerLine * k;
@@ -711,7 +729,12 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
     frame = { width, height, progressive, components, maxH, maxV, mcusPerLine, mcusPerColumn };
   };
 
-  const decodeScan = (at) => {
+  let scans = 0;
+  const decodeScan = async (at) => {
+    scans += 1;
+    if (scans > MAX_SCANS) {
+      throw corrupt('too many scans');
+    }
     if (!frame) {
       throw corrupt('scan before the frame header');
     }
@@ -765,7 +788,16 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
     const total = single
       ? mcusPerLine * components[0].blocksPerColumn
       : mcusPerLine * frame.mcusPerColumn;
+    let slice = performance.now();
     for (let mcu = 0; mcu < total; mcu++) {
+      if (padding > MAX_PADDING) {
+        return; // no data left in this scan: the rest stays as it is
+      }
+      if ((mcu & 255) === 0 && performance.now() - slice > SLICE_MS) {
+        // Let the integration breathe (acks, states) on a large image.
+        await new Promise((resolve) => setImmediate(resolve));
+        slice = performance.now();
+      }
       if (restartInterval && mcu > 0 && mcu % restartInterval === 0) {
         // Skip to the RSTn marker; any other marker ends the scan.
         while (
@@ -853,7 +885,7 @@ export function decodeJpeg(data, target, o = ARTWORK_DEFAULTS) {
       throw new ArtworkError('UNSUPPORTED', 'Lossless, hierarchical or arithmetic-coded JPEG');
     } else if (m === 0xda) {
       pos = end;
-      decodeScan(at);
+      await decodeScan(at);
       // Past the entropy-coded data: the next marker other than RSTn.
       while (
         pos < data.length - 1 &&
@@ -1003,8 +1035,8 @@ const ADAM7 = [
 ];
 
 /**
- * Decodes a PNG into a grid reduced by an integer factor (the largest that
- * keeps it at least as large as the target), inflating it as a stream: each
+ * Decodes a PNG into a grid reduced by an integer factor per axis (the
+ * largest that keeps it at least as large as the target), inflating it as a stream: each
  * row is unfiltered then added into the grid, never kept.
  * @returns {Promise<{ width: number, height: number, data: Uint8Array }>} RGB
  */
@@ -1065,14 +1097,17 @@ export async function decodePng(data, target, o = ARTWORK_DEFAULTS) {
     paletteAlpha = new Uint8Array(256).fill(255);
     paletteAlpha.set((transparent ?? new Uint8Array(0)).subarray(0, 256));
   }
-  const reduction = Math.max(1, Math.floor(Math.min(width / target.width, height / target.height)));
-  const gridWidth = Math.ceil(width / reduction);
-  const gridHeight = Math.ceil(height / reduction);
+  // One factor per axis: a 4 000 000 × 1 px image reduces along its width.
+  const reductionX = Math.max(1, Math.floor(width / target.width));
+  const reductionY = Math.max(1, Math.floor(height / target.height));
+  const gridWidth = Math.ceil(width / reductionX);
+  const gridHeight = Math.ceil(height / reductionY);
   const channels = PNG_CHANNELS[colorType];
   const bitsPerPixel = channels * depth;
   const bytesPerPixel = Math.max(1, bitsPerPixel >> 3);
   if (
-    gridWidth * gridHeight * 12 + 4 * (Math.ceil((width * bitsPerPixel) / 8) + 1) >
+    // Sums (Float64 × 3) and the result (× 3) per grid pixel, two rows.
+    gridWidth * gridHeight * 27 + 2 * (Math.ceil((width * bitsPerPixel) / 8) + 1) >
     o.maxDecodeBytes
   ) {
     throw new ArtworkError('TOO_LARGE', 'Decoding this PNG would take too much memory');
@@ -1094,15 +1129,15 @@ export async function decodePng(data, target, o = ARTWORK_DEFAULTS) {
   };
   const to8 = depth === 16 ? (v) => v / 257 : depth === 8 ? (v) => v : (v) => (v * 255) / max;
   const key =
-    transparent && colorType === 0
+    transparent?.length >= 2 && colorType === 0
       ? [u16(transparent, 0)]
-      : transparent && colorType === 2
+      : transparent?.length >= 6 && colorType === 2
         ? [u16(transparent, 0), u16(transparent, 2), u16(transparent, 4)]
         : null;
 
   const addRow = (pass, y, row) => {
     const [x0, , dx] = pass;
-    const gridRow = Math.floor(y / reduction) * gridWidth;
+    const gridRow = Math.floor(y / reductionY) * gridWidth;
     for (let p = 0, x = x0; x < width; p++, x += dx) {
       let r;
       let g;
@@ -1142,7 +1177,7 @@ export async function decodePng(data, target, o = ARTWORK_DEFAULTS) {
         g = g * f + bgG * (1 - f);
         b = b * f + bgB * (1 - f);
       }
-      const at = (gridRow + Math.floor(x / reduction)) * 3;
+      const at = (gridRow + Math.floor(x / reductionX)) * 3;
       sums[at] += r;
       sums[at + 1] += g;
       sums[at + 2] += b;
@@ -1251,9 +1286,9 @@ export async function decodePng(data, target, o = ARTWORK_DEFAULTS) {
 
   const out = new Uint8Array(gridWidth * gridHeight * 3);
   for (let gy = 0; gy < gridHeight; gy++) {
-    const rows = Math.min(reduction, height - gy * reduction);
+    const rows = Math.min(reductionY, height - gy * reductionY);
     for (let gx = 0; gx < gridWidth; gx++) {
-      const n = rows * Math.min(reduction, width - gx * reduction);
+      const n = rows * Math.min(reductionX, width - gx * reductionX);
       const at = (gy * gridWidth + gx) * 3;
       out[at] = clamp(sums[at] / n);
       out[at + 1] = clamp(sums[at + 1] / n);

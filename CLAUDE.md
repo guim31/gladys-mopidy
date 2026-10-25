@@ -286,8 +286,10 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   **autonome** (rien de Mopidy, `jpeg-js` pour l'encodage seulement) et se copie tel quel dans d'autres
   dépôts : le garder ainsi. Décodeur JPEG maison réduit par l'IDCT (1/2, 1/4, 1/8) parce que jpeg-js
   décode en entier (~25 o/pixel : un 3000 × 3000 prend 200 Mo, un 4096 × 4096 tue un conteneur de 256 Mo) ;
-  PNG gonflé en flux, ligne par ligne. Mesuré dans un conteneur de 256 Mo : +30 Mo au plus jusqu'à
-  6000 × 4000, 2 s au pire (progressif). Fixtures `test/fixtures/artwork/` comparées à jpeg-js. Le paquet
+  PNG gonflé en flux, ligne par ligne, réduit par axe. Mesuré dans un conteneur de 256 Mo : +30 Mo au
+  plus jusqu'à 6000 × 4000 (plafond 25 Mpx), 2 s au pire (progressif), la boucle d'événements rendue toutes
+  les 40 ms ; un JPEG forgé (scans vides à l'infini) est coupé : 100 scans au plus, un scan sans données
+  s'arrête (relecture indépendante du 25/10). Fixtures `test/fixtures/artwork/` comparées à jpeg-js. Le paquet
   Debian 13 `mopidy-local` 3.2.1 est cassé (import de `imghdr`, absent de Python 3.13) : le banc prend
   `mopidy-local==3.3.0` de PyPI (+ `uritools`, `python3-setuptools`).
 - Banc de test réel : `Dockerfile` Debian trixie + `apt install mopidy` (ou `pip install mopidy` pour la

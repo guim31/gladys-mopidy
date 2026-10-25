@@ -260,7 +260,7 @@ one every 30 seconds per server.
 
 - Up to four servers. A server is known by its slot in the configuration:
   changing its address keeps the device and its history.
-- Covers above 10 MB or 50 megapixels are not shown, nor covers above 300 KB in another format than JPEG and PNG (WebP, GIF…): the integration only reduces JPEG and PNG.
+- Covers above 10 MB or 25 megapixels are not shown, nor covers in another format than JPEG, PNG and WebP (GIF…), nor WebP covers above 300 KB: the integration only reduces JPEG and PNG.
 - The search of the **Music** box asks every backend at once: a slow streaming extension slows it down (Gladys waits 10 seconds).
 - The search queues at most 50 tracks, a playlist at most 500.
 - Mopidy cannot be found automatically on the network: enter the addresses.

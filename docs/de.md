@@ -283,7 +283,7 @@ Mopidy hat kein Kontingent: Die Integration sendet einen Stapel Abfragen pro
 
 - Bis zu vier Server. Ein Server ist über seinen Platz in der Konfiguration
   bekannt: Seine Adresse zu ändern behält das Gerät und seinen Verlauf.
-- Cover über 10 MB oder 50 Megapixel werden nicht angezeigt, ebenso Cover über 300 KB in einem anderen Format als JPEG und PNG (WebP, GIF…): Die Integration verkleinert nur JPEG und PNG.
+- Cover über 10 MB oder 25 Megapixel werden nicht angezeigt, ebenso Cover in einem anderen Format als JPEG, PNG und WebP (GIF…) und WebP-Cover über 300 KB: Die Integration verkleinert nur JPEG und PNG.
 - Die Suche der Box **Musik** fragt alle Backends gleichzeitig: Eine langsame Streaming-Erweiterung bremst sie (Gladys wartet 10 Sekunden).
 - Die Suche reiht höchstens 50 Titel ein, eine Playlist höchstens 500.
 - Mopidy wird nicht automatisch im Netzwerk gefunden: Gib die Adressen ein.

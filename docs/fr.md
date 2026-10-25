@@ -271,7 +271,7 @@ changement et un toutes les 30 secondes par serveur.
 
 - Jusqu'à quatre serveurs. Un serveur est connu par sa place dans la
   configuration : changer son adresse garde l'appareil et son historique.
-- Les pochettes de plus de 10 Mo ou de 50 mégapixels ne s'affichent pas, ni celles de plus de 300 Ko dans un autre format que JPEG et PNG (WebP, GIF…) : l'intégration ne réduit que le JPEG et le PNG.
+- Les pochettes de plus de 10 Mo ou de 25 mégapixels ne s'affichent pas, ni celles dans un autre format que JPEG, PNG et WebP (GIF…), ni les WebP de plus de 300 Ko : l'intégration ne réduit que le JPEG et le PNG.
 - La recherche de la boîte **Musique** interroge tous les backends à la fois : une extension de streaming lente la ralentit (Gladys attend 10 secondes).
 - La recherche met au plus 50 morceaux en file, une playlist au plus 500.
 - Mopidy ne se trouve pas tout seul sur le réseau : saisissez les adresses.

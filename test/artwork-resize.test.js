@@ -215,39 +215,39 @@ test('imageInfo reads the format and the size from the header', () => {
 
 // --- JPEG -----------------------------------------------------------------------
 
-test('the JPEG decoder matches jpeg-js on every variant, at full size', () => {
+test('the JPEG decoder matches jpeg-js on every variant, at full size', async () => {
   for (const name of JPEGS) {
     const buffer = fixture(name);
     const ref = reference(buffer);
-    const img = decodeJpeg(buffer, { width: 99, height: 75 });
+    const img = await decodeJpeg(buffer, { width: 99, height: 75 });
     assert.deepEqual([img.width, img.height], [99, 75], name);
     // jpeg-js upsamples the chroma by repetition, this decoder interpolates.
     assert.ok(mae(img.data, ref.data) < 2.5, `${name}: ${mae(img.data, ref.data)}`);
   }
 });
 
-test('a progressive JPEG decodes exactly like its baseline twin', () => {
+test('a progressive JPEG decodes exactly like its baseline twin', async () => {
   // Same quality, same coefficients: only the order of the bits differs.
   for (const r of [1, 2, 4, 8]) {
     const target = { width: Math.ceil(99 / r), height: Math.ceil(75 / r) };
     assert.deepEqual(
-      decodeJpeg(fixture('progressive-420.jpg'), target),
-      decodeJpeg(fixture('baseline-420.jpg'), target),
+      await decodeJpeg(fixture('progressive-420.jpg'), target),
+      await decodeJpeg(fixture('baseline-420.jpg'), target),
     );
     assert.deepEqual(
-      decodeJpeg(fixture('gray-progressive.jpg'), target),
-      decodeJpeg(fixture('gray.jpg'), target),
+      await decodeJpeg(fixture('gray-progressive.jpg'), target),
+      await decodeJpeg(fixture('gray.jpg'), target),
     );
   }
 });
 
-test('the JPEG decoder reduces by 2, 4 and 8 from the DCT coefficients', () => {
+test('the JPEG decoder reduces by 2, 4 and 8 from the DCT coefficients', async () => {
   for (const name of JPEGS) {
     const buffer = fixture(name);
     const ref = reference(buffer);
     for (const r of [2, 4, 8]) {
       const target = { width: Math.ceil(99 / r), height: Math.ceil(75 / r) };
-      const img = decodeJpeg(buffer, target);
+      const img = await decodeJpeg(buffer, target);
       assert.deepEqual([img.width, img.height], [target.width, target.height], `${name} /${r}`);
       const expected = boxDown(ref.data, 99, 75, r);
       assert.ok(mae(img.data, expected) < 5, `${name} /${r}: ${mae(img.data, expected)}`);
@@ -255,43 +255,87 @@ test('the JPEG decoder reduces by 2, 4 and 8 from the DCT coefficients', () => {
   }
 });
 
-test('the JPEG decoder refuses what it cannot read', () => {
+test('the JPEG decoder refuses what it cannot read', async () => {
   const target = { width: 10, height: 10 };
-  assert.throws(() => decodeJpeg(fixture('arithmetic.jpg'), target), isCode('UNSUPPORTED'));
+  await assert.rejects(decodeJpeg(fixture('arithmetic.jpg'), target), isCode('UNSUPPORTED'));
   // 12 bits per sample.
   const twelve = Buffer.from(fixture('baseline-420.jpg'));
   const sof = twelve.indexOf(Buffer.from([0xff, 0xc0]));
   twelve[sof + 4] = 12;
-  assert.throws(() => decodeJpeg(twelve, target), isCode('UNSUPPORTED'));
+  await assert.rejects(decodeJpeg(twelve, target), isCode('UNSUPPORTED'));
   // A header cut in the middle of a segment.
   const header = fixture('baseline-420.jpg').subarray(0, 100);
-  assert.throws(() => decodeJpeg(header, target), isCode('CORRUPT'));
+  await assert.rejects(decodeJpeg(header, target), isCode('CORRUPT'));
   // No frame at all.
-  assert.throws(() => decodeJpeg(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), target), isCode('CORRUPT'));
+  await assert.rejects(
+    decodeJpeg(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), target),
+    isCode('CORRUPT'),
+  );
   // Too many pixels for the limit, refused on the header.
   const huge = Buffer.from(fixture('baseline-420.jpg'));
   huge.writeUInt16BE(60000, sof + 5);
   huge.writeUInt16BE(60000, sof + 7);
-  assert.throws(() => decodeJpeg(huge, target), isCode('TOO_LARGE'));
+  await assert.rejects(decodeJpeg(huge, target), isCode('TOO_LARGE'));
   // More memory than allowed, refused before allocating.
-  assert.throws(
-    () =>
-      decodeJpeg(
-        fixture('progressive-444.jpg'),
-        { width: 99, height: 75 },
-        { maxPixels: 1e9, maxDecodeBytes: 1000 },
-      ),
+  await assert.rejects(
+    decodeJpeg(
+      fixture('progressive-444.jpg'),
+      { width: 99, height: 75 },
+      { maxPixels: 1e9, maxDecodeBytes: 1000 },
+    ),
     isCode('TOO_LARGE'),
   );
 });
 
-test('a truncated JPEG decodes what it has instead of failing', () => {
+test('a truncated JPEG decodes what it has instead of failing', async () => {
   const buffer = fixture('baseline-444.jpg');
-  const img = decodeJpeg(buffer.subarray(0, buffer.length - 1500), { width: 99, height: 75 });
+  const img = await decodeJpeg(buffer.subarray(0, buffer.length - 1500), { width: 99, height: 75 });
   assert.deepEqual([img.width, img.height], [99, 75]);
   // The top of the image is intact.
   const ref = reference(buffer);
   assert.ok(mae(img.data.subarray(0, 99 * 8 * 3), ref.data.subarray(0, 99 * 8 * 3)) < 2);
+});
+
+/** gray.jpg turned into a 4000 × 4000 frame followed by `scans` scans without data. */
+function emptyScans(scans) {
+  const gray = fixture('gray.jpg');
+  const sos = gray.indexOf(Buffer.from([0xff, 0xda]));
+  const header = Buffer.from(gray.subarray(0, sos));
+  const sof = header.indexOf(Buffer.from([0xff, 0xc0]));
+  header.writeUInt16BE(4000, sof + 5);
+  header.writeUInt16BE(4000, sof + 7);
+  const scan = gray.subarray(sos, sos + 2 + gray.readUInt16BE(sos + 2));
+  return Buffer.concat([header, ...Array(scans).fill(scan), Buffer.from([0xff, 0xd9])]);
+}
+
+test('a forged JPEG of empty scans neither loops nor blocks', async () => {
+  const target = { width: 400, height: 400 };
+  // Each scan stops once its data has run out.
+  const start = performance.now();
+  const img = await decodeJpeg(emptyScans(60), target);
+  assert.deepEqual([img.width, img.height], [500, 500]);
+  assert.ok(performance.now() - start < 1500, `${performance.now() - start} ms`);
+  // Beyond 100 scans: refused.
+  await assert.rejects(decodeJpeg(emptyScans(101), target), isCode('CORRUPT'));
+});
+
+test('the JPEG decoder lets the event loop run on a large image', async () => {
+  // 2400 × 2400 of gray noise, baseline: decoded in slices.
+  let ticks = 0;
+  const timer = setInterval(() => ticks++, 5);
+  const width = 2400;
+  const height = 2400;
+  const rgba = Buffer.alloc(width * height * 4, 255);
+  let seed = 3;
+  for (let i = 0; i < rgba.length; i += 4) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    rgba.fill(seed & 0xff, i, i + 3);
+  }
+  const big = jpeg.encode({ data: rgba, width, height }, 90).data;
+  ticks = 0;
+  await decodeJpeg(big, { width: 400, height: 400 });
+  clearInterval(timer);
+  assert.ok(ticks > 0, 'the timer never ran during the decoding');
 });
 
 // --- PNG ------------------------------------------------------------------------
@@ -467,6 +511,22 @@ test('the PNG decoder refuses broken files', async () => {
   huge.writeUInt32BE(100_000, 16);
   huge.writeUInt32BE(100_000, 20);
   await assert.rejects(decodePng(huge, target), isCode('TOO_LARGE'));
+});
+
+test('a PNG of an extreme aspect ratio is reduced along each axis', async () => {
+  // 4 000 000 × 1 px of 1-bit gray: a few hundred bytes, never a 4 Mpx grid.
+  const wide = encodePng({
+    width: 4_000_000,
+    height: 1,
+    colorType: 0,
+    depth: 1,
+    sample: (x) => [x % 2],
+  });
+  const img = await decodePng(wide, { width: 400, height: 1 });
+  assert.deepEqual([img.width, img.height], [400, 1]);
+  assert.ok(Math.abs(img.data[0] - 128) < 2, `${img.data[0]}`);
+  const out = await prepareArtwork(wide);
+  assert.deepEqual(imageInfo(out), { format: 'jpeg', width: 400, height: 1 });
 });
 
 // --- prepareArtwork -------------------------------------------------------------
