@@ -38,7 +38,8 @@ src/hub.js                        one record per server: devices, states, transp
 src/player.js                     one Mopidy server: connection, events, readings, commands, notifications
 src/mopidy/client.js              JSON-RPC over HTTP (batches) + the event WebSocket, errors by kind
 src/mopidy/model.js               Mopidy answers -> plain objects (status, track, playlists)
-src/devices.js                    the device of a server, its features and states
+src/devices.js                    the device of a server, its features, the now-playing snapshot (publishNowPlaying)
+src/catalog.js                    Gladys 5.3 music panel: browse, search, play, queue, artwork bytes (manifest `music`)
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    the `player` dashboard widget (manifest `widgets`)
 src/texts.js, src/issues.js       messages in four languages; repeated failures logged once
@@ -265,7 +266,23 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - La WebSocket n'est qu'un accélérateur : « connecté » veut dire que le JSON-RPC répond. Sans elle (proxy),
   la lecture du minuteur (30 s) suffit, et la WebSocket est rouverte à chaque tick.
 - Le formulaire d'un bouton de widget est limité à **4 champs** (`validateWidgetContent`) : le muet n'y
-  est pas, c'est un interrupteur de l'appareil.
+  est pas, c'est une fonctionnalité de l'appareil (`music/mute` depuis la 1.1.0).
+- **Lecteur Musique 5.3 (1.1.0)** : `publishNowPlaying` à chaque lecture (le SDK fait le diff, la
+  position ne repart que sur changement d'état ou de piste, ou un saut > 3 s) ; seul le texte « En cours »
+  passe encore par `publishChangedStates`. `playback-state` garde son identifiant (d'où
+  `featureExternalIds`), les nouvelles suivent `${device}:${type}`. Le muet `switch/binary` de la 1.0 est
+  devenu `music/mute` sous le même identifiant : `device.create` du cœur met à jour catégorie et type
+  d'une fonctionnalité retrouvée par `external_id` quand l'utilisateur clique « Mettre à jour ».
+- **Catalogue (vérifié sur 3.4.2 + Mopidy-Local 3.3.0, et 4.0.5)** : `library.browse` rend tout le niveau
+  (pagination faite ici) ; une URI de playlist M3U ne se parcourt ni ne se lit par `browse`/`add` (`[]`) :
+  passer par `playlists.get_items` ; **ajouter l'URI d'un dossier crée une fausse piste qui fait planter
+  Mopidy 3.4 (segfault GStreamer) à la lecture** : un dossier n'est jamais jouable ; `tracklist.index`
+  garde la piste courante après `stop`. La recherche de Mopidy-Local ne rend que des pistes.
+- **Pochettes** : `library.get_images` donne des chemins sur le serveur (`/local/<hash>.jpeg`), à la taille
+  du fichier (Mopidy-Local ne redimensionne pas) ; au-delà de 300 Ko, refus explicite dans
+  `catalog.artwork` (lecture en flux plafonnée) plutôt qu'un envoi que le cœur rejetterait. Le paquet
+  Debian 13 `mopidy-local` 3.2.1 est cassé (import de `imghdr`, absent de Python 3.13) : le banc prend
+  `mopidy-local==3.3.0` de PyPI (+ `uritools`, `python3-setuptools`).
 - Banc de test réel : `Dockerfile` Debian trixie + `apt install mopidy` (ou `pip install mopidy` pour la
   4), `[audio] output = fakesink sync=true`, fichiers générés par `gst-launch-1.0 audiotestsrc`, playlists
   M3U ; réseau Docker `gladys-test-mopidy`, sans port publié.

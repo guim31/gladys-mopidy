@@ -171,11 +171,33 @@ export const ACTION_TEXT = {
     de: 'Die Mopidy-Bibliothek hat keinen Titel für diese Suche.',
     es: 'La biblioteca de Mopidy no tiene ninguna pista para esta búsqueda.',
   },
+  folderNotPlayable: {
+    en: 'A folder cannot be played: open it and play what it holds.',
+    fr: 'Un dossier ne se lit pas : ouvrez-le et lancez ce qu’il contient.',
+    de: 'Ein Ordner kann nicht abgespielt werden: öffne ihn und spiele seinen Inhalt ab.',
+    es: 'Una carpeta no se puede reproducir: ábrala y reproduzca lo que contiene.',
+  },
+  notInQueue: {
+    en: 'This item is no longer in the queue.',
+    fr: "Cet élément n'est plus dans la file d'attente.",
+    de: 'Dieser Eintrag ist nicht mehr in der Warteschlange.',
+    es: 'Este elemento ya no está en la cola.',
+  },
   refused: {
     en: 'Mopidy refused the command, see the logs of the integration.',
     fr: "Mopidy a refusé la commande, voir les logs de l'intégration.",
     de: 'Mopidy hat den Befehl abgelehnt, sieh in den Protokollen der Integration nach.',
     es: 'Mopidy ha rechazado la orden, consulte los registros de la integración.',
+  },
+};
+
+// The entry points of the catalog (Gladys 5.3 music panel), next to Mopidy's own.
+export const CATALOG_TEXT = {
+  playlists: {
+    en: 'Playlists',
+    fr: 'Playlists',
+    de: 'Playlists',
+    es: 'Listas de reproducción',
   },
 };
 

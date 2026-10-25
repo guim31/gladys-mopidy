@@ -15,6 +15,21 @@
 /** Playback states, as the rest of the integration names them. */
 export const STATES = Object.freeze({ PLAY: 'play', PAUSE: 'pause', STOP: 'stop' });
 
+/** Repeat modes offered to scenes and the widget, as Mopidy's `repeat` and `single`. */
+export const REPEAT_MODES = Object.freeze({
+  off: { repeat: false, single: false },
+  all: { repeat: true, single: false },
+  one: { repeat: true, single: true },
+});
+
+/** The repeat mode of a status. */
+export function repeatMode(status) {
+  if (!status?.repeat) {
+    return 'off';
+  }
+  return status.single ? 'one' : 'all';
+}
+
 const MOPIDY_STATES = { playing: STATES.PLAY, paused: STATES.PAUSE, stopped: STATES.STOP };
 
 const MAX_TEXT = 200;
@@ -165,6 +180,29 @@ export function baseName(uri) {
   } catch {
     return name;
   }
+}
+
+/**
+ * The image to show among those `core.library.get_images` gives for a URI:
+ * the smallest at least `minWidth` wide, else the widest; the first when
+ * Mopidy does not know their sizes. Null when there is none.
+ * @param {any} images a list of Mopidy Images ({ uri, width?, height? })
+ * @param {number} minWidth
+ * @returns {string|null} its URI (absolute, or a path on the Mopidy server)
+ */
+export function pickImage(images, minWidth) {
+  const list = (Array.isArray(images) ? images : []).filter(
+    (image) => typeof image?.uri === 'string' && image.uri !== '',
+  );
+  if (list.length === 0) {
+    return null;
+  }
+  const sized = list.filter((image) => Number.isInteger(image.width) && image.width > 0);
+  if (sized.length === 0) {
+    return list[0].uri;
+  }
+  sized.sort((a, b) => a.width - b.width);
+  return (sized.find((image) => image.width >= minWidth) ?? sized.at(-1)).uri;
 }
 
 /** Is this a stream (web radio), whose end never comes? */

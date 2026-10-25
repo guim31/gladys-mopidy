@@ -10,6 +10,33 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- The music player of Gladys 5.3: the **Music** box of the dashboard shows
+  the cover, the title, the artist, the album and a progress bar you can drag
+  to seek, with shuffle, repeat and mute. New features on each server:
+  title, artist, album, artwork, duration, position (writable: seek),
+  shuffle and repeat (off, all, one).
+- The panels of the Music box: the Mopidy **queue** (tap an item to play it),
+  **search** in every Mopidy backend and in the playlist names, and
+  **browsing** of the playlists and of the Mopidy library; an item plays in
+  place of the queue, after the current track, or at the end of the queue.
+  The core scene action "Play music on a speaker" uses the same catalog.
+- Covers read from Mopidy (Mopidy-Local and other extensions), up to the
+  300 KB Gladys accepts.
+
+### Changed
+
+- Requires Gladys 5.3.0 or later (SDK 0.16).
+- The playback state is writable (play, pause, stop) and reads 2 (stopped)
+  instead of 0 when Mopidy is stopped.
+- The mute feature is a music mute (`music/mute`, same external id) instead
+  of a switch.
+- Devices added with 1.0.x get the new features after **Update** in the
+  Discover tab of the integration; until then they work as before. The "Now
+  playing" text feature (now doubled by title and artist) and the "Mopidy
+  player" widget stay.
+
 ## [1.0.0] - 2026-10-24
 
 ### Added

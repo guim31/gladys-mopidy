@@ -46,6 +46,61 @@ export const LIBRARY = {
   voice: track('https://gladys.example/tts/abc.mp3?token=x', 'abc.mp3', { length: 8000 }),
 };
 
+// The album of the tagged tracks, as Mopidy-Local names it.
+export const ALBUM_URI = 'local:album:md5:discovery';
+export const ARTIST_URI = 'local:artist:md5:daftpunk';
+
+// Images by URI, as `core.library.get_images` gives them: Mopidy-Local
+// serves one image per album, a path on the server, at the size of the file;
+// a streaming backend gives absolute URLs in several sizes.
+export const IMAGES = {
+  [ALBUM_URI]: [{ uri: '/local/discovery-300x300.jpeg', width: 300, height: 300 }],
+  'local:track:one-more-time.flac': [
+    { uri: '/local/discovery-300x300.jpeg', width: 300, height: 300 },
+  ],
+  'local:track:aerodynamic.flac': [
+    { uri: '/local/huge-1600x1600.jpeg', width: 1600, height: 1600 },
+  ],
+};
+
+// A tiny JPEG (the core checks the magic number), and one above 300 KB.
+export const SMALL_JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
+export const HUGE_JPEG = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.alloc(400_000),
+]);
+
+// The library as `core.library.browse` walks it.
+export const TREE = {
+  root: [
+    { __model__: 'Ref', uri: 'file:///music', name: 'Files', type: 'directory' },
+    { __model__: 'Ref', uri: 'local:directory', name: 'Local media', type: 'directory' },
+  ],
+  'local:directory': [
+    { __model__: 'Ref', uri: ALBUM_URI, name: 'Discovery', type: 'album' },
+    { __model__: 'Ref', uri: ARTIST_URI, name: 'Daft Punk', type: 'artist' },
+  ],
+  [ALBUM_URI]: [
+    {
+      __model__: 'Ref',
+      uri: 'local:track:one-more-time.flac',
+      name: 'One More Time',
+      type: 'track',
+    },
+    { __model__: 'Ref', uri: 'local:track:aerodynamic.flac', name: 'Aerodynamic', type: 'track' },
+  ],
+  'file:///music': [
+    { __model__: 'Ref', uri: 'file:///music/sub', name: 'sub', type: 'directory' },
+    { __model__: 'Ref', uri: 'file:///music/la-440.ogg', name: 'la-440.ogg', type: 'track' },
+    {
+      __model__: 'Ref',
+      uri: 'http://radio.example/stream.mp3',
+      name: 'Radio Example',
+      type: 'track',
+    },
+  ],
+};
+
 // A file the file backend accepts but cannot read.
 export const BROKEN = 'file:///music/none.ogg';
 
@@ -155,6 +210,12 @@ export class FakeMopidy {
   handle(req, res) {
     if (this.offline) {
       req.socket.destroy();
+      return;
+    }
+    if (req.method === 'GET' && req.url.startsWith('/local/')) {
+      const image = req.url.includes('huge') ? HUGE_JPEG : SMALL_JPEG;
+      this.imageRequests = (this.imageRequests ?? 0) + 1;
+      res.writeHead(200, { 'Content-Type': 'image/jpeg' }).end(image);
       return;
     }
     if (req.method !== 'POST' || req.url !== '/mopidy/rpc') {
@@ -391,9 +452,12 @@ export class FakeMopidy {
       },
       'core.tracklist.get_tl_tracks': () =>
         this.tracklist.map((item) => ({ __model__: 'TlTrack', ...item })),
-      'core.tracklist.add': ({ uris = [] }) => {
+      'core.tracklist.add': ({ uris = [], at_position: atPosition }) => {
         const added = [];
-        for (const uri of uris) {
+        const expanded = uris.flatMap((uri) =>
+          uri === ALBUM_URI ? TREE[ALBUM_URI].map((ref) => ref.uri) : [uri],
+        );
+        for (const uri of expanded) {
           const known = Object.values(LIBRARY).find((t) => t.uri === uri);
           const readable =
             known ?? (/^(file|https?|local|m3u):/.test(uri) ? track(uri, uri) : null);
@@ -401,7 +465,11 @@ export class FakeMopidy {
             continue; // no backend for this scheme
           }
           const item = { tlid: this.nextTlid++, track: readable };
-          this.tracklist.push(item);
+          if (Number.isInteger(atPosition)) {
+            this.tracklist.splice(atPosition + added.length, 0, item);
+          } else {
+            this.tracklist.push(item);
+          }
           added.push({ __model__: 'TlTrack', ...item });
         }
         if (added.length) {
@@ -409,6 +477,13 @@ export class FakeMopidy {
         }
         return added;
       },
+      'core.tracklist.slice': ({ start, end }) =>
+        this.tracklist.slice(start, end).map((item) => ({ __model__: 'TlTrack', ...item })),
+      'core.library.browse': ({ uri }) => TREE[uri ?? 'root'] ?? [],
+      'core.library.get_images': ({ uris = [] }) =>
+        Object.fromEntries(
+          uris.map((uri) => [uri, (IMAGES[uri] ?? []).map((i) => ({ __model__: 'Image', ...i }))]),
+        ),
       'core.tracklist.clear': () => {
         this.tracklist = [];
         this.current = null;
@@ -443,7 +518,17 @@ export class FakeMopidy {
             .filter(Boolean)
             .some((value) => value.toLowerCase().includes(wanted)),
         );
-        return [{ __model__: 'SearchResult', uri: 'local:search', tracks }];
+        const albums = tracks.some((t) => t.album?.name === 'Discovery')
+          ? [
+              {
+                __model__: 'Album',
+                uri: ALBUM_URI,
+                name: 'Discovery',
+                artists: [{ __model__: 'Artist', uri: ARTIST_URI, name: 'Daft Punk' }],
+              },
+            ]
+          : [];
+        return [{ __model__: 'SearchResult', uri: 'local:search', tracks, albums }];
       },
     };
   }

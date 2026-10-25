@@ -63,7 +63,8 @@ test('the states of an added device follow Mopidy through its events, without an
   const playback = featureId(w.gladys, FEATURE_KEYS.PLAYBACK_STATE);
   const mute = featureId(w.gladys, FEATURE_KEYS.MUTE);
   assert.equal(w.fake.lastState(volume), 40);
-  assert.equal(w.fake.lastState(playback), 0);
+  // Stopped: IDLE (2) since 1.1.0, PAUSED (0) before.
+  assert.equal(w.fake.lastState(playback), 2);
   assert.equal(w.fake.lastState(mute), 0);
   assert.equal(lastText(w, FEATURE_KEYS.NOW_PLAYING), 'Stopped');
 
