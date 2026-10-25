@@ -20,7 +20,7 @@ Diese Integration ist nicht mit dem Mopidy-Projekt verbunden.
 
 ## Voraussetzungen
 
-- Gladys Assistant **5.2.0** oder neuer.
+- Gladys Assistant **5.3.0** oder neuer.
 - Mopidy 3 oder 4 mit seiner HTTP-Schnittstelle (**Mopidy-HTTP**,
   standardmäßig aktiv), von Gladys aus im Netzwerk erreichbar: Setze in
   `mopidy.conf`, Abschnitt `[http]`, `hostname = 0.0.0.0` (der Standardwert
@@ -53,24 +53,68 @@ Integration nicht aufgelöst.
 ## Das Gerät jedes Servers
 
 Jeder Mopidy-Server ist ein Gerät. Gladys zeigt es als Musikplayer: Die
-Dashboard-Box **Musik** (Wiedergabe, Pause, zurück, weiter, Lautstärke) und
-die Szenenaktion **Auf einem Lautsprecher sprechen** funktionieren damit.
+Dashboard-Box **Musik** und die Szenenaktionen **Auf einem Lautsprecher
+sprechen** und **Musik auf einem Lautsprecher abspielen** funktionieren damit
+(siehe nächsten Abschnitt).
 
-| Funktion (deutsche Namen) | Was sie tut                                                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Wiedergabe                | Spielt die Warteschlange (ein pausierter Titel läuft dort weiter, wo er war).                                          |
-| Pause                     | Pausiert.                                                                                                              |
-| Vorheriger Titel          | Geht zum vorherigen Titel.                                                                                             |
-| Nächster Titel            | Geht zum nächsten Titel.                                                                                               |
-| Lautstärke                | 0 bis 100 %, wie Mopidy sie sieht. Ohne Wert, wenn Mopidy keinen Mixer hat (`mixer = none`).                           |
-| Stumm                     | An oder aus: die Stummschaltung des Mopidy-Mixers.                                                                     |
-| Wiedergabestatus          | 1 während der Wiedergabe, 0 pausiert oder gestoppt. Im Verlauf gespeichert, als Szenenauslöser oder Bedingung nutzbar. |
-| Aktuelle Wiedergabe       | „Titel — Interpret“, „Pausiert · …“ oder „Gestoppt“. Bei einem Webradio der angekündigte Titel.                        |
-| Playlist                  | Die Liste der Mopidy-Playlists: Eine auswählen ersetzt die Warteschlange durch sie und spielt sie ab.                  |
-| Benachrichtigung          | Empfängt eine Adresse zum Abspielen und stellt danach wieder her, was lief (siehe unten).                              |
+| Funktion (deutsche Namen) | Was sie tut                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wiedergabe                | Spielt die Warteschlange (ein pausierter Titel läuft dort weiter, wo er war).                                                                                                |
+| Pause                     | Pausiert.                                                                                                                                                                    |
+| Vorheriger Titel          | Geht zum vorherigen Titel.                                                                                                                                                   |
+| Nächster Titel            | Geht zum nächsten Titel.                                                                                                                                                     |
+| Lautstärke                | 0 bis 100 %, wie Mopidy sie sieht. Ohne Wert, wenn Mopidy keinen Mixer hat (`mixer = none`).                                                                                 |
+| Stumm                     | An oder aus: die Stummschaltung des Mopidy-Mixers.                                                                                                                           |
+| Wiedergabestatus          | 1 Wiedergabe, 0 pausiert, 2 gestoppt. Schreibbar: Gladys startet, pausiert und stoppt die Wiedergabe darüber. Als Szenenauslöser oder Bedingung nutzbar.                     |
+| Titel                     | Titel des Stücks, oder das Stück, das ein Webradio ankündigt. Leer, wenn nichts geladen ist.                                                                                 |
+| Künstler                  | Künstler des Stücks.                                                                                                                                                         |
+| Album                     | Album des Stücks, oder der Sender eines Webradios.                                                                                                                           |
+| Cover                     | Cover des Stücks, angezeigt von der Box **Musik** (siehe Grenzen).                                                                                                           |
+| Dauer                     | Länge des Stücks in Sekunden, 0 bei einem Webradio.                                                                                                                          |
+| Position                  | Position im Stück in Sekunden; eine Änderung springt dorthin. Gesendet bei einem Wechsel von Stück oder Status und bei einem Sprung: Gladys bewegt den Balken selbst weiter. |
+| Zufallswiedergabe         | Die Zufallswiedergabe von Mopidy.                                                                                                                                            |
+| Wiederholung              | Aus, die ganze Warteschlange oder das aktuelle Stück.                                                                                                                        |
+| Aktuelle Wiedergabe       | „Titel — Interpret“, „Pausiert · …“ oder „Gestoppt“. Bei einem Webradio der angekündigte Titel. Seit Version 1.0, für die Dashboards und Szenen beibehalten, die sie nutzen. |
+| Playlist                  | Die Liste der Mopidy-Playlists: Eine auswählen ersetzt die Warteschlange durch sie und spielt sie ab.                                                                        |
+| Benachrichtigung          | Empfängt eine Adresse zum Abspielen und stellt danach wieder her, was lief (siehe unten).                                                                                    |
 
 Die Liste der Playlists folgt Mopidy: Eine erstellte oder gelöschte Playlist
 erscheint oder verschwindet in der Liste.
+
+## Musikplayer von Gladys 5.3
+
+Seit Gladys 5.3 ist die Box **Musik** des Dashboards ein echter Player, und
+Mopidy füllt sie vollständig:
+
+- Cover, Titel, Künstler und Album, ein Fortschrittsbalken, den du zum
+  Springen ziehst, Wiedergabe und Pause, zurück, weiter, Zufallswiedergabe,
+  Wiederholung, Lautstärke und Stummschaltung;
+- die **Warteschlange** (Listen-Knopf): die Stücke der Mopidy-Warteschlange,
+  das aktuelle hervorgehoben; ein Tippen spielt ein anderes ab;
+- **Suchen und Durchblättern** (Lupen-Knopf): Die Suche fragt jedes
+  Mopidy-Backend, das suchen kann (Künstler, Alben, Stücke), und die Namen der
+  Playlists; das Durchblättern beginnt mit **Playlists**, dann den Ordnern von
+  Mopidy (**Files**, **Local media** mit Mopidy-Local, die deiner anderen
+  Erweiterungen). Ein Tippen spielt den Eintrag anstelle der Warteschlange ab;
+  die zweite Geste fügt ihn nach dem aktuellen Stück oder am Ende der
+  Warteschlange ein. Ein Ordner öffnet sich, er wird nicht abgespielt.
+
+Die Szenenaktion **Musik auf einem Lautsprecher abspielen** von Gladys wählt
+eine Playlist, ein Album oder ein Stück im selben Bereich und spielt es ab,
+wenn die Szene läuft.
+
+**Ein vor Version 1.1.0 hinzugefügtes Gerät** funktioniert wie bisher, ohne die
+neuen Funktionen: Öffne den Tab **Entdecken** der Integration und klicke beim
+Server auf **Aktualisieren** (Gladys bietet es an, weil sich die Funktionen
+geändert haben). Die neuen Funktionen kommen hinzu; die bisherigen behalten
+ihre Szenen und Dashboards. Zwei ändern sich: **Stumm** wird eine
+Musik-Stummschaltung (vorher ein Schalter), und **Wiedergabestatus** zeigt 2
+statt 0, wenn Mopidy gestoppt ist.
+
+Die Cover kommen von Mopidy: Mopidy-Local liefert die Cover-Datei des
+Albumordners oder das in die Dateien eingebettete Cover, andere Erweiterungen
+ihre eigenen. Gladys zeigt ein Cover von **höchstens 300 KB**, und Mopidy-Local
+verkleinert nicht: Ein größeres Cover zeigt den Platzhalter (siehe Grenzen).
 
 ## Dashboard-Widget
 
@@ -89,7 +133,7 @@ Einstellungen einen Server (leer: der erste der Konfiguration). Es zeigt:
 
 Das Widget folgt dem Server: Es wird innerhalb von zehn Sekunden
 aktualisiert, wenn ein Titel startet, sich die Lautstärke ändert oder eine
-Playlist erstellt wird. Kein Cover (siehe Grenzen).
+Playlist erstellt wird. Die Box **Musik** von Gladys 5.3 (oben) ist der vollständige Player; dieses Widget ergänzt das Formular **Optionen…** und hat kein Cover.
 
 ## Szenen
 
@@ -171,6 +215,7 @@ aber Gladys gibt ihn nicht an externe Integrationen weiter: Verwende die
 
 ### Szenenideen
 
+- **Musik am Morgen**: Um 7:00 _Musik auf einem Lautsprecher abspielen_ mit der Playlist **Morgen** auf dem Küchen-Server.
 - **Türklingel**: Wenn der Klingelknopf gedrückt wird, _Adresse auf Mopidy
   abspielen_ `file:///musik/toene/klingel.ogg` auf dem Server im Wohnzimmer,
   Lautstärke 70, dann die vorherige Musik fortsetzen.
@@ -236,11 +281,10 @@ Mopidy hat kein Kontingent: Die Integration sendet einen Stapel Abfragen pro
 
 - Bis zu vier Server. Ein Server ist über seinen Platz in der Konfiguration
   bekannt: Seine Adresse zu ändern behält das Gerät und seinen Verlauf.
-- Kein Cover im Widget: Mopidy gibt Bildadressen in seinem eigenen Netz, die
-  das Dashboard nicht unbedingt erreicht.
-- Kein Durchblättern der Bibliothek: Playlists, Suchen, Adressen und URIs.
+- Cover über 300 KB werden nicht angezeigt (Grenze von Gladys): Mopidy-Local liefert das Cover so, wie es auf der Platte liegt. Eine `cover.jpg` von etwa 500 × 500 Pixeln passt.
+- Die Suche der Box **Musik** fragt alle Backends gleichzeitig: Eine langsame Streaming-Erweiterung bremst sie (Gladys wartet 10 Sekunden).
 - Die Suche reiht höchstens 50 Titel ein, eine Playlist höchstens 500.
 - Mopidy wird nicht automatisch im Netzwerk gefunden: Gib die Adressen ein.
 - Gladys gibt die Lautstärke der Aktion **Auf einem Lautsprecher sprechen**
   nicht weiter (es gilt die **Lautstärke der Benachrichtigungen**).
-- Gladys 5.2.0 oder neuer (das Formular **Optionen…** des Widgets).
+- Gladys 5.3.0 oder neuer (der Musikplayer und seine Bereiche).

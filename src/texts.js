@@ -171,11 +171,39 @@ export const ACTION_TEXT = {
     de: 'Die Mopidy-Bibliothek hat keinen Titel für diese Suche.',
     es: 'La biblioteca de Mopidy no tiene ninguna pista para esta búsqueda.',
   },
+  folderNotPlayable: {
+    en: 'A folder cannot be played: open it and play what it holds.',
+    fr: 'Un dossier ne se lit pas : ouvrez-le et lancez ce qu’il contient.',
+    de: 'Ein Ordner kann nicht abgespielt werden: öffne ihn und spiele seinen Inhalt ab.',
+    es: 'Una carpeta no se puede reproducir: ábrala y reproduzca lo que contiene.',
+  },
+  tooLarge: {
+    en: 'Mopidy answered with too much at once (over 5 MB): open a smaller folder or refine the search.',
+    fr: 'Mopidy a répondu avec trop de données d’un coup (plus de 5 Mo) : ouvrez un dossier plus petit ou affinez la recherche.',
+    de: 'Mopidy hat zu viel auf einmal geantwortet (über 5 MB): Öffne einen kleineren Ordner oder verfeinere die Suche.',
+    es: 'Mopidy ha respondido con demasiados datos a la vez (más de 5 MB): abra una carpeta más pequeña o afine la búsqueda.',
+  },
+  notInQueue: {
+    en: 'This item is no longer in the queue.',
+    fr: "Cet élément n'est plus dans la file d'attente.",
+    de: 'Dieser Eintrag ist nicht mehr in der Warteschlange.',
+    es: 'Este elemento ya no está en la cola.',
+  },
   refused: {
     en: 'Mopidy refused the command, see the logs of the integration.',
     fr: "Mopidy a refusé la commande, voir les logs de l'intégration.",
     de: 'Mopidy hat den Befehl abgelehnt, sieh in den Protokollen der Integration nach.',
     es: 'Mopidy ha rechazado la orden, consulte los registros de la integración.',
+  },
+};
+
+// The entry points of the catalog (Gladys 5.3 music panel), next to Mopidy's own.
+export const CATALOG_TEXT = {
+  playlists: {
+    en: 'Playlists',
+    fr: 'Playlists',
+    de: 'Playlists',
+    es: 'Listas de reproducción',
   },
 };
 

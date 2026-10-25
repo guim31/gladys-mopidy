@@ -20,16 +20,20 @@
 
 import { EventEmitter } from 'node:events';
 import { createLogger } from '@gladysassistant/integration-sdk';
-import { ERROR_KINDS, MopidyClient, MopidyError } from './mopidy/client.js';
+import { ERROR_KINDS, MopidyClient, MopidyError, TOO_LARGE, serverUrl } from './mopidy/client.js';
 import {
+  REPEAT_MODES,
   STATES,
   STATUS_CALLS,
   parsePlaylists,
   parseStatus,
   parseTrack,
+  pickImage,
   searchTracks,
   trackUris,
 } from './mopidy/model.js';
+
+export { REPEAT_MODES, repeatMode } from './mopidy/model.js';
 
 const logger = createLogger({ name: 'mopidy-player' });
 
@@ -53,6 +57,10 @@ export const PLAYER_TIMINGS = {
   // Putting back the interrupted track: how long to wait for it to load.
   resumeTimeoutMs: 5_000,
   resumeCheckMs: 50,
+  // How long a reading waits for the artwork of a new track (a web backend
+  // may look it up online): past it, the track is shown without it, and the
+  // next reading asks again.
+  artworkTimeoutMs: 2_000,
   // Without the event socket, how often a notification playing is read.
   notificationPollMs: 1_000,
   startCheckMs: 500,
@@ -69,20 +77,9 @@ export const MAX_QUEUED_TRACKS = 500;
 export const NOT_PLAYABLE = 'not_playable';
 export const MAX_SEARCH_TRACKS = 50;
 
-/** Repeat modes offered to scenes and the widget, as Mopidy's `repeat` and `single`. */
-export const REPEAT_MODES = Object.freeze({
-  off: { repeat: false, single: false },
-  all: { repeat: true, single: false },
-  one: { repeat: true, single: true },
-});
-
-/** The repeat mode of a status. */
-export function repeatMode(status) {
-  if (!status?.repeat) {
-    return 'off';
-  }
-  return status.single ? 'one' : 'all';
-}
+// Widths asked of Mopidy's images (the smallest at least this wide): the
+// now-playing frame of Gladys is under 400 px, a list thumbnail under 64 px.
+export const IMAGE_WIDTHS = Object.freeze({ NOW_PLAYING: 300, THUMBNAIL: 64 });
 
 /**
  * Is this something Mopidy may play? A URI with a scheme: `http(s)://` (a
@@ -156,6 +153,9 @@ export class Player extends EventEmitter {
     this.ending = null;
     /** The track a notification resumes: its start is not news. */
     this.resumedTlid = null;
+    /** The artwork of the current track: the URI it was read for, its absolute URL. */
+    this.artworkFor = null;
+    this.artworkUrl = null;
   }
 
   get connected() {
@@ -420,10 +420,23 @@ export class Player extends EventEmitter {
         }
       }
     }
+    const { status, track } = parseStatus(results);
+    if ((track?.uri ?? null) !== this.artworkFor) {
+      // Once per track: Mopidy gives its images by URI, never in the track.
+      // Awaited so that a track change is one batch of states, but briefly:
+      // a web backend may be slow, and a command waits for this reading.
+      const images = track
+        ? await this.images(client, [track.uri], IMAGE_WIDTHS.NOW_PLAYING, {
+            timeoutMs: this.timings.artworkTimeoutMs,
+          })
+        : new Map();
+      this.artworkUrl = track ? (images.get(track.uri) ?? null) : null;
+      // Not read (error, timeout): asked again at the next reading.
+      this.artworkFor = images.failed ? null : (track?.uri ?? null);
+    }
     if (this.client !== client) {
       return;
     }
-    const { status, track } = parseStatus(results);
     this.status = status;
     this.track = track;
     this.playlists = playlists;
@@ -444,7 +457,8 @@ export class Player extends EventEmitter {
     try {
       answers = await client.batch(calls);
     } catch (err) {
-      if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND) {
+      // An answer too large is a request asking too much, not a lost server.
+      if (asMopidyError(err).kind !== ERROR_KINDS.COMMAND && err.code !== TOO_LARGE) {
         this.lose(client, err);
       }
       throw err;
@@ -565,6 +579,134 @@ export class Player extends EventEmitter {
    */
   playUri(uri) {
     return this.replaceQueue([uri]);
+  }
+
+  /**
+   * Seek in the current track (ignored while stopped: 3.4 answers false, 4.0 true).
+   * @param {number} seconds
+   */
+  seek(seconds) {
+    return this.run([['core.playback.seek', { time_position: Math.round(seconds * 1000) }]]);
+  }
+
+  /**
+   * Start a media of the catalog: a playlist is queued through its items
+   * (Mopidy's M3U backend cannot look a playlist URI up), an album or an
+   * artist through its tracks (at most MAX_QUEUED_TRACKS: an artist of a
+   * streaming service may have thousands), a track or a radio by its URI.
+   * @param {string} uri
+   * @param {string} type MediaItem type
+   * @param {'replace'|'next'|'append'} mode
+   * @returns {Promise<number>} the number of tracks Mopidy accepted
+   */
+  async playMedia(uri, type, mode) {
+    const client = this.requireClient();
+    let uris = [uri];
+    if (type === 'playlist') {
+      const items = await client.call('core.playlists.get_items', { uri });
+      if (Array.isArray(items)) {
+        uris = trackUris(items).slice(0, MAX_QUEUED_TRACKS);
+      }
+    } else if (type === 'album' || type === 'artist') {
+      const found = await client.call('core.library.lookup', { uris: [uri] });
+      uris = trackUris(found?.[uri]).slice(0, MAX_QUEUED_TRACKS);
+    }
+    if (mode === 'replace') {
+      return this.replaceQueue(uris);
+    }
+    if (uris.length === 0) {
+      return 0;
+    }
+    const params = { uris };
+    if (mode === 'next') {
+      const index = await client.call('core.tracklist.index');
+      if (Number.isInteger(index)) {
+        params.at_position = index + 1;
+      }
+    }
+    const [added] = await this.run([['core.tracklist.add', params]]);
+    return Array.isArray(added) ? added.length : 0;
+  }
+
+  /**
+   * A page of the queue.
+   * @returns {Promise<{ tlTracks: any[], index: number|null, length: number }>}
+   */
+  async queuePage(offset, limit) {
+    const [length, index, tlTracks] = await this.requireClient().batch([
+      ['core.tracklist.get_length'],
+      ['core.tracklist.index'],
+      ['core.tracklist.slice', { start: offset, end: offset + limit }],
+    ]);
+    return {
+      tlTracks: Array.isArray(tlTracks) ? tlTracks : [],
+      index: Number.isInteger(index) ? index : null,
+      length: Number.isInteger(length) ? length : 0,
+    };
+  }
+
+  /**
+   * Play the item at this index of the queue.
+   * @returns {Promise<boolean>} false when there is none
+   */
+  async playIndex(index) {
+    const [tlTrack] =
+      (await this.requireClient().call('core.tracklist.slice', { start: index, end: index + 1 })) ??
+      [];
+    if (!Number.isInteger(tlTrack?.tlid)) {
+      return false;
+    }
+    await this.run([['core.playback.play', { tlid: tlTrack.tlid }]]);
+    return true;
+  }
+
+  /**
+   * One read-only call of the catalog (browse, search, playlist items).
+   * @param {string} method
+   * @param {object} [params]
+   */
+  library(method, params) {
+    return this.requireClient().call(method, params);
+  }
+
+  /**
+   * The image of each URI, as an absolute URL (Mopidy-Local gives paths on
+   * the server, `/local/<hash>.jpeg`). Never throws: no image, no artwork.
+   * @param {MopidyClient} [client]
+   * @param {string[]} uris
+   * @param {number} minWidth
+   * @param {{ timeoutMs?: number }} [options] give up after this long
+   * @returns {Promise<Map<string, string>>} with `failed` set when not read
+   */
+  async images(client, uris, minWidth, { timeoutMs } = {}) {
+    const found = new Map();
+    if (!client || uris.length === 0) {
+      return found;
+    }
+    let timer;
+    try {
+      const call = client.call('core.library.get_images', { uris });
+      const raw = timeoutMs
+        ? await Promise.race([
+            call,
+            new Promise((resolve, reject) => {
+              timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+            }),
+          ])
+        : await call;
+      for (const uri of uris) {
+        const image = pickImage(raw?.[uri], minWidth);
+        if (image) {
+          found.set(uri, new URL(image, `${serverUrl(this.server)}/`).href);
+        }
+      }
+    } catch (err) {
+      found.failed = true;
+      logger.debug(`Player ${this.server.slot}: images not read (${err.message})`);
+    } finally {
+      clearTimeout(timer);
+    }
+    return found;
   }
 
   /** @returns {Promise<number>} the number of tracks Mopidy accepted */

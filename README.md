@@ -7,8 +7,9 @@ source a Mopidy extension adds (Jellyfin, YouTube Music, TuneIn, Subsonic…).
 No cloud, no account.
 
 Tested against real Mopidy servers in Docker, **Mopidy 3.4.2** (Debian 13
-package) and **4.0.5** (PyPI): playback, pause, volume, mute, next, playlists,
-notifications and events. Feedback welcome in the
+package, with Mopidy-Local) and **4.0.5** (PyPI): playback, pause, volume,
+mute, next, playlists, notifications, events, and the browse, search, queue
+and cover reads of the Gladys 5.3 music player. Feedback welcome in the
 [issues](https://github.com/guim31/gladys-mopidy/issues).
 
 ### Mopidy or MPD?
@@ -23,11 +24,19 @@ MPD itself and the players built on it (moOde, Volumio, piCorePlayer).
 
 ## Features
 
+- **Gladys 5.3 music player**: the **Music** box of the dashboard shows the
+  cover, title, artist and album, a progress bar to seek, play/pause,
+  previous, next, shuffle, repeat, volume and mute; its panels show the
+  **queue** (tap to jump), **search** every Mopidy backend and the playlists,
+  and **browse** the playlists and the library of Mopidy (play, play next,
+  add to the queue). The core scene action _Play music on a speaker_ starts a
+  playlist, an album or a track picked there.
 - **One device per server** (up to four, each with its address and name),
   with the music features of Gladys, so it shows as a player in the **Music**
   dashboard box and in the **Talk on a speaker** scene action: play, pause,
-  previous, next, **volume**, **mute**, **playback state** (in the history,
-  for triggers and conditions), **now playing** ("Title — Artist", or the song
+  previous, next, **volume**, **mute**, **playback state** (play, pause, stop;
+  for triggers and conditions), title, artist, album, artwork, duration,
+  position, shuffle, repeat, **now playing** ("Title — Artist", or the song
   a web radio announces), a **playlist** select listing the Mopidy playlists
   (it follows Mopidy when one is created or deleted), and a **notification**
   feature.
@@ -63,8 +72,7 @@ MPD itself and the players built on it (moOde, Volumio, piCorePlayer).
 
 ## Requirements
 
-- Gladys Assistant **5.2.0** or later (widgets, triggers and scene actions
-  need 5.1.0, the form behind the widget's Options… button 5.2.0).
+- Gladys Assistant **5.3.0** or later (the music player and its panels).
 - Mopidy 3 or 4 with Mopidy-HTTP reachable from Gladys (port 6680 by
   default; `hostname = 0.0.0.0` in the `[http]` section of `mopidy.conf`).
 
@@ -81,6 +89,25 @@ MPD itself and the players built on it (moOde, Volumio, piCorePlayer).
 The user guide is in [`docs/en.md`](docs/en.md) (also in
 [French](docs/fr.md), [German](docs/de.md) and [Spanish](docs/es.md)); Gladys
 links it from the Configuration screen.
+
+## Gladys 5.3 music player
+
+Version 1.1.0 follows the music player contract of Gladys 5.3
+(`@gladysassistant/integration-sdk` 0.16): the now-playing features are
+published by `publishNowPlaying` on Mopidy's events (the position only on a
+change of track or state and on a seek: Gladys extrapolates it), the writable
+ones are confirmed by Mopidy (`has_feedback`), and the manifest declares
+`"music": { "browse": true, "search": true, "queue": true, "append": true }`
+(`src/catalog.js`). Covers are read with `core.library.get_images` and
+served to Gladys behind a key, never as a URL, up to the 300 KB the core
+accepts.
+
+**Devices added with 1.0.x** keep their features and states; the new ones
+appear after **Update** in the Discover tab (Gladys offers it because the
+feature list changed). The mute feature keeps its external id and becomes
+`music/mute` (it was `switch/binary`), and the playback state reads 2 (idle)
+instead of 0 when Mopidy is stopped. The "Now playing" text feature and the
+widget stay.
 
 ## How it works
 
@@ -100,7 +127,8 @@ links it from the Configuration screen.
 
 ## Limits
 
-- No cover art in the widget, no browsing of the library.
+- Covers above 300 KB are not shown: Mopidy-Local serves the cover file as it
+  is on disk, and the integration does not resize images.
 - Mopidy cannot be found automatically: addresses are typed.
 - Mopidy-HTTP has no authentication: keep it on your local network.
 

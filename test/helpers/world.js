@@ -8,7 +8,7 @@
 
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { registerHandlers } from '../../src/app.js';
-import { BROKEN, FakeMopidy, LIBRARY } from './fakeMopidy.js';
+import { FakeMopidy } from './fakeMopidy.js';
 
 // The integration logs every change; keep the test output readable.
 process.env.LOG_LEVEL ??= 'silent';
@@ -127,4 +127,4 @@ export function featureOf(world, key, slot = 1) {
   return { device, feature };
 }
 
-export { BROKEN, FakeMopidy, LIBRARY };
+export { ALBUM_URI, BROKEN, FakeMopidy, LIBRARY } from './fakeMopidy.js';

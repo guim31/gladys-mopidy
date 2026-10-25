@@ -12,7 +12,12 @@
 // when the player was read less than half a period ago.
 // -----------------------------------------------------------------------------
 
-import { DEVICE_TRANSPORTS, createLogger } from '@gladysassistant/integration-sdk';
+import {
+  DEVICE_TRANSPORTS,
+  MUSIC_PLAYBACK_STATE,
+  MUSIC_REPEAT_MODE,
+  createLogger,
+} from '@gladysassistant/integration-sdk';
 import { formatAddress } from './config.js';
 import {
   FEATURE_KEYS,
@@ -20,11 +25,13 @@ import {
   deviceIds,
   featureKeyOf,
   featureStates,
+  nowPlaying,
+  nowPlayingIds,
   playerName,
   slotOf,
 } from './devices.js';
 import { createIssueLog } from './issues.js';
-import { ERROR_KINDS, MopidyError } from './mopidy/client.js';
+import { ERROR_KINDS, MopidyError, TOO_LARGE } from './mopidy/client.js';
 import { STATES, describeTrack } from './mopidy/model.js';
 import { NOT_PLAYABLE, Player, checkUri, repeatMode } from './player.js';
 import {
@@ -53,6 +60,13 @@ export const HUB_TIMINGS = {
   heartbeatMs: 6 * 60 * 60_000,
   // The core drops a widget refresh asked less than 10 s after the previous one.
   widgetNudgeMs: 10_000,
+};
+
+// music/repeat values -> the repeat modes of the player.
+const REPEAT_KEYS = {
+  [MUSIC_REPEAT_MODE.OFF]: 'off',
+  [MUSIC_REPEAT_MODE.ALL]: 'all',
+  [MUSIC_REPEAT_MODE.ONE]: 'one',
 };
 
 const signature = (server) => JSON.stringify([server.host, server.port, server.secure]);
@@ -359,14 +373,17 @@ export class MopidyHub {
     if (!record.player.status || !this.isCreated(record.server.slot)) {
       return;
     }
-    const states = featureStates(
-      this.gladys,
-      record.server.slot,
-      record.player.status,
-      record.player.track,
-      this.language,
-    );
+    const { slot } = record.server;
+    const { status, track, artworkUrl } = record.player;
+    const states = featureStates(this.gladys, slot, status, track, this.language);
     try {
+      // The music features: diffed by the SDK, the position only on a change
+      // of state or track, or a seek (Gladys extrapolates it).
+      await this.gladys.publishNowPlaying(
+        deviceIds(this.gladys, slot).device,
+        nowPlaying(status, track, artworkUrl),
+        { featureExternalIds: nowPlayingIds(this.gladys, slot) },
+      );
       await this.gladys.publishChangedStates(states, { heartbeat: this.timings.heartbeatMs });
       this.issues.ok('states', 'States accepted by Gladys again');
     } catch (err) {
@@ -528,9 +545,10 @@ export class MopidyHub {
    * @param {object} record
    * @param {string} what for the log line
    * @param {(player: Player) => Promise<any>} fn
+   * @param {{ quiet?: boolean }} [options] quiet: a reading (browse, search), logged at debug
    */
-  async command(record, what, fn) {
-    logger.info(`${this.label(record)}: ${what}`);
+  async command(record, what, fn, { quiet = false } = {}) {
+    logger[quiet ? 'debug' : 'info'](`${this.label(record)}: ${what}`);
     try {
       return await fn(record.player);
     } catch (err) {
@@ -542,6 +560,8 @@ export class MopidyHub {
         let text = ACTION_TEXT.unreachable;
         if (err.code === NOT_PLAYABLE) {
           text = ACTION_TEXT.notPlayable;
+        } else if (err.code === TOO_LARGE) {
+          text = ACTION_TEXT.tooLarge;
         } else if (err.kind === ERROR_KINDS.COMMAND) {
           text = ACTION_TEXT.refused;
         }
@@ -551,7 +571,10 @@ export class MopidyHub {
     }
   }
 
-  /** A feature of a device: play, pause, previous, next, volume, mute, playlist, notification. */
+  /**
+   * A feature of a device: play, pause, previous, next, volume, mute,
+   * playback state, position, shuffle, repeat, playlist, notification.
+   */
   async setValue(device, feature, value) {
     const record = this.recordOf(device.external_id);
     const key = featureKeyOf(this.gladys, record.server.slot, feature.external_id);
@@ -570,6 +593,21 @@ export class MopidyHub {
         return this.command(record, Number(value) === 1 ? 'mute' : 'unmute', (player) =>
           player.setMute(Number(value) === 1),
         );
+      case FEATURE_KEYS.PLAYBACK_STATE:
+        return this.setPlaybackState(record, value);
+      case FEATURE_KEYS.POSITION:
+        return this.seek(record, value);
+      case FEATURE_KEYS.SHUFFLE:
+        return this.command(record, Number(value) === 1 ? 'shuffle on' : 'shuffle off', (player) =>
+          player.setRandom(Number(value) === 1),
+        );
+      case FEATURE_KEYS.REPEAT: {
+        const mode = REPEAT_KEYS[Number(value)];
+        if (!mode) {
+          throw new Error(`Invalid repeat mode ${value}`);
+        }
+        return this.command(record, `repeat ${mode}`, (player) => player.setRepeat(mode));
+      }
       case FEATURE_KEYS.PLAYLIST:
         await this.playPlaylist(record, value);
         return undefined;
@@ -585,6 +623,29 @@ export class MopidyHub {
       default:
         throw new Error(`Feature ${feature.external_id} cannot be controlled`);
     }
+  }
+
+  /** Writing music/playback_state (Gladys 5.3): 0 pause, 1 play, 2 stop. */
+  async setPlaybackState(record, value) {
+    switch (Number(value)) {
+      case MUSIC_PLAYBACK_STATE.PAUSED:
+        return this.command(record, 'pause', (player) => player.pause());
+      case MUSIC_PLAYBACK_STATE.PLAYING:
+        return this.command(record, 'play', (player) => player.play());
+      case MUSIC_PLAYBACK_STATE.IDLE:
+        return this.command(record, 'stop', (player) => player.stopPlayback());
+      default:
+        throw new Error(`Invalid playback state ${value}`);
+    }
+  }
+
+  /** Writing music/position (Gladys 5.3): a seek, in seconds. */
+  async seek(record, value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      throw new Error(`Invalid position ${value}`);
+    }
+    return this.command(record, `seek ${Math.round(seconds)} s`, (player) => player.seek(seconds));
   }
 
   async setVolume(record, value) {

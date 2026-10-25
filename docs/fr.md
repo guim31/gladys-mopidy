@@ -19,7 +19,7 @@ Cette intégration n'est pas affiliée au projet Mopidy.
 
 ## Prérequis
 
-- Gladys Assistant **5.2.0** ou plus récent.
+- Gladys Assistant **5.3.0** ou plus récent.
 - Mopidy 3 ou 4 avec son interface HTTP (**Mopidy-HTTP**, activée par défaut),
   joignable depuis Gladys sur le réseau : dans `mopidy.conf`, section `[http]`,
   mettez `hostname = 0.0.0.0` (la valeur par défaut `127.0.0.1` ne répond qu'à
@@ -51,25 +51,69 @@ conteneur de l'intégration.
 ## L'appareil de chaque serveur
 
 Chaque serveur Mopidy est un appareil. Gladys le montre comme un lecteur de
-musique : la boîte **Musique** du tableau de bord (lecture, pause, précédent,
-suivant, volume) et l'action de scène **Parler sur une enceinte** fonctionnent
-avec.
+musique : la boîte **Musique** du tableau de bord et les actions de scène
+**Parler sur une enceinte** et **Lancer une musique sur une enceinte**
+fonctionnent avec (voir la section suivante).
 
-| Fonctionnalité (noms français) | Ce qu'elle fait                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Lecture                        | Lit la file d'attente (un morceau en pause reprend où il en était).                                                      |
-| Pause                          | Met en pause.                                                                                                            |
-| Morceau précédent              | Passe au morceau précédent.                                                                                              |
-| Morceau suivant                | Passe au morceau suivant.                                                                                                |
-| Volume                         | 0 à 100 %, tel que Mopidy le voit. Sans valeur quand Mopidy n'a pas de mixer (`mixer = none`).                           |
-| Muet                           | Activé ou non : le muet du mixer de Mopidy.                                                                              |
-| État de lecture                | 1 pendant la lecture, 0 en pause ou à l'arrêt. Gardé dans l'historique, utilisable en déclencheur ou condition de scène. |
-| En cours                       | « Titre — Artiste », « En pause · … » ou « Arrêté ». Pour une webradio, le morceau qu'elle annonce.                      |
-| Playlist                       | La liste des playlists de Mopidy : en choisir une remplace la file d'attente par elle et la joue.                        |
-| Notification                   | Reçoit une adresse à jouer, puis remet ce qui jouait (voir plus bas).                                                    |
+| Fonctionnalité (noms français) | Ce qu'elle fait                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lecture                        | Lit la file d'attente (un morceau en pause reprend où il en était).                                                                                                                         |
+| Pause                          | Met en pause.                                                                                                                                                                               |
+| Morceau précédent              | Passe au morceau précédent.                                                                                                                                                                 |
+| Morceau suivant                | Passe au morceau suivant.                                                                                                                                                                   |
+| Volume                         | 0 à 100 %, tel que Mopidy le voit. Sans valeur quand Mopidy n'a pas de mixer (`mixer = none`).                                                                                              |
+| Muet                           | Activé ou non : le muet du mixer de Mopidy.                                                                                                                                                 |
+| État de lecture                | 1 en lecture, 0 en pause, 2 à l'arrêt. Modifiable : Gladys lance, met en pause et arrête la lecture par elle. Utilisable en déclencheur ou condition de scène.                              |
+| Titre                          | Titre du morceau, ou le morceau qu'annonce une webradio. Vide quand rien n'est chargé.                                                                                                      |
+| Artiste                        | Artiste(s) du morceau.                                                                                                                                                                      |
+| Album                          | Album du morceau, ou la station d'une webradio.                                                                                                                                             |
+| Pochette                       | Pochette du morceau, montrée par la boîte **Musique** (voir Limites).                                                                                                                       |
+| Durée                          | Longueur du morceau en secondes, 0 pour une webradio.                                                                                                                                       |
+| Position                       | Position dans le morceau en secondes ; la changer fait avancer ou reculer. Envoyée à chaque changement de morceau ou d'état et à chaque saut : Gladys fait avancer la barre seule.          |
+| Lecture aléatoire              | La lecture aléatoire de Mopidy.                                                                                                                                                             |
+| Répétition                     | Désactivée, toute la file d'attente, ou le morceau en cours.                                                                                                                                |
+| En cours                       | « Titre — Artiste », « En pause · … » ou « Arrêté ». Pour une webradio, le morceau qu'elle annonce. Depuis la version 1.0, gardée pour les tableaux de bord et les scènes qui s'en servent. |
+| Playlist                       | La liste des playlists de Mopidy : en choisir une remplace la file d'attente par elle et la joue.                                                                                           |
+| Notification                   | Reçoit une adresse à jouer, puis remet ce qui jouait (voir plus bas).                                                                                                                       |
 
 La liste des playlists suit Mopidy : une playlist créée ou supprimée apparaît
 ou disparaît de la liste.
+
+## Lecteur Musique de Gladys 5.3
+
+Depuis Gladys 5.3, la boîte **Musique** du tableau de bord est un vrai
+lecteur, et Mopidy la remplit entièrement :
+
+- la pochette, le titre, l'artiste et l'album, une barre de progression qu'on
+  fait glisser pour avancer, lecture et pause, précédent, suivant, lecture
+  aléatoire, répétition, le volume et le muet ;
+- la **file d'attente** (bouton liste) : les morceaux de la file de Mopidy,
+  celui en cours en évidence ; un appui en lance un autre ;
+- **la recherche et la navigation** (bouton loupe) : la recherche interroge
+  chaque backend de Mopidy qui sait chercher (artistes, albums, morceaux) et
+  les noms des playlists ; la navigation commence par **Playlists**, puis les
+  dossiers de Mopidy (**Files**, **Local media** avec Mopidy-Local, ceux de vos
+  autres extensions). Un appui lance l'élément à la place de la file ; le geste
+  secondaire l'ajoute après le morceau en cours ou en fin de file. Un dossier
+  s'ouvre, il ne se lit pas.
+
+L'action de scène **Lancer une musique sur une enceinte** de Gladys choisit
+une playlist, un album ou un morceau dans le même panneau, et le lance quand la
+scène s'exécute.
+
+**Un appareil ajouté avant la version 1.1.0** fonctionne comme avant, sans les
+nouvelles fonctionnalités : ouvrez l'onglet **Découvrir** de l'intégration et
+cliquez sur **Mettre à jour** sur le serveur (Gladys le propose parce que les
+fonctionnalités ont changé). Les nouvelles fonctionnalités s'ajoutent ; les
+anciennes gardent leurs scènes et leurs tableaux de bord. Deux changent :
+**Muet** devient un muet de musique (c'était un interrupteur), et **État de
+lecture** vaut 2 au lieu de 0 quand Mopidy est arrêté.
+
+Les pochettes viennent de Mopidy : Mopidy-Local donne le fichier de pochette du
+dossier de l'album ou la pochette intégrée aux fichiers, les autres extensions
+les leurs. Gladys affiche une pochette de **300 Ko au plus**, et Mopidy-Local
+ne la redimensionne pas : une pochette plus lourde laisse l'image par défaut
+(voir Limites).
 
 ## Widget du tableau de bord
 
@@ -87,8 +131,7 @@ choisissez un serveur (vide : le premier de la configuration). Il montre :
   répétition. Seul ce que vous changez est envoyé.
 
 Le widget suit le serveur : il se rafraîchit en dix secondes au plus quand un
-morceau démarre, que le volume bouge ou qu'une playlist est créée. Pas de
-pochette (voir Limites).
+morceau démarre, que le volume bouge ou qu'une playlist est créée. La boîte **Musique** de Gladys 5.3 (plus haut) est le lecteur complet ; ce widget y ajoute le formulaire **Options…** et n'a pas de pochette.
 
 ## Scènes
 
@@ -163,6 +206,7 @@ notifications** de la configuration.
 
 ### Idées de scènes
 
+- **Musique du matin** : à 7 h, _Lancer une musique sur une enceinte_ avec la playlist **Matin** sur le serveur de la cuisine.
 - **Sonnette** : quand on appuie sur le bouton de la sonnette, _Jouer une
   adresse sur Mopidy_ `file:///musique/sons/sonnette.ogg` sur le serveur du
   salon, volume 70, puis reprendre la musique d'avant.
@@ -227,12 +271,10 @@ changement et un toutes les 30 secondes par serveur.
 
 - Jusqu'à quatre serveurs. Un serveur est connu par sa place dans la
   configuration : changer son adresse garde l'appareil et son historique.
-- Pas de pochette dans le widget : Mopidy donne des adresses d'images sur son
-  propre réseau, que le tableau de bord ne joint pas forcément.
-- Pas de navigation dans la bibliothèque : playlists, recherches, adresses et
-  URI.
+- Les pochettes de plus de 300 Ko ne s'affichent pas (limite de Gladys) : Mopidy-Local sert la pochette telle qu'elle est sur le disque. Un `cover.jpg` d'environ 500 × 500 pixels convient.
+- La recherche de la boîte **Musique** interroge tous les backends à la fois : une extension de streaming lente la ralentit (Gladys attend 10 secondes).
 - La recherche met au plus 50 morceaux en file, une playlist au plus 500.
 - Mopidy ne se trouve pas tout seul sur le réseau : saisissez les adresses.
 - Gladys ne transmet pas le volume de l'action **Parler sur une enceinte** (le
   **Volume des notifications** s'applique).
-- Gladys 5.2.0 ou plus récent (le formulaire **Options…** du widget).
+- Gladys 5.3.0 ou plus récent (le lecteur Musique et ses panneaux).
